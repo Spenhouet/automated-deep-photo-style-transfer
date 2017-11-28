@@ -1,0 +1,47 @@
+\documentclass[journal, 12pt]{IEEEtran}
+%
+% If IEEEtran.cls has not been installed into the LaTeX system files,
+% manually specify the path to it like:
+% \documentclass[journal]{../sty/IEEEtran}
+
+%Support of umlaut ä, ö, ü
+\usepackage[utf8]{inputenc}
+
+%-----------------------------------------------------
+% Variablen definieren
+
+\def \myTitle {Tensorflow Implementation of Deep Photo Style Transfer} %TODO
+\def \myAuthor {Paul Sanzenbacher, Sebastian Penhou\"{e}t}
+\def \myUniversity {University of Tübingen}
+\def \myClass {Computer Graphics Practical Course}
+\def \myDepartment {Department of Computer Science}
+\def \myKeywords {style transfer, tensorflow} %TODO
+
+% Correct bad hyphenation here:
+%\hyphenation{op-tical net-works semi-conduc-tor}
+
+%-----------------------------------------------------
+
+\usepackage{preamble}
+
+\begin{document}
+
+\input{./inputs/formalities.tex}
+
+\subfile{doc_abstract}
+
+%--------------------------------------------------
+
+\subfile{doc_introduction}
+
+\subfile{doc_style_transfer}
+
+%--------------------------------------------------
+
+\subfile{doc_appendix}
+
+\input{./inputs/acronym.tex}
+
+\input{./inputs/bibliography.tex}
+
+\end{document}
