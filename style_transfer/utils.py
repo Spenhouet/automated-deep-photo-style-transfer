@@ -1,13 +1,9 @@
-"""
-Created by sanzenba on 11/30/17
-"""
-
 import cv2
 
 
-# save the layer activations of a given conv layer to the file system
-def dump_layer_activation(conv_layer, filename_format):
-    numFeatureMaps = conv_layer.shape[3]
-    for i in range(numFeatureMaps):
-        featureMap = conv_layer[0, :, :, i]
-        cv2.imwrite(filename_format % i, featureMap)
+def save_layer_activations(conv_layer, filename_format):
+    """Save the layer activations of a given conv layer to the file system"""
+    num_feature_maps = conv_layer.shape[3]
+    for i in range(num_feature_maps):
+        feature_map = conv_layer[0, :, :, i]
+        cv2.imwrite(filename_format % i, feature_map)

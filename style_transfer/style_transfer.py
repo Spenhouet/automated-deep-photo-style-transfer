@@ -5,56 +5,60 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
-import utils
-from vgg19 import VGG19ConvSub
+from utils import save_layer_activations
+from vgg19 import VGG19ConvSub, load_weights, preprocess
 
 
 def style_transfer(content_image, style_image, weights_path):
-    input_shape = content_image.shape
+    """Create the VGG19 subset network"""
+    content_vgg19 = VGG19ConvSub('content_vgg19', tf.constant(content_image))
+    style_vgg19 = VGG19ConvSub('style_vgg19', tf.constant(style_image))
 
-    # input placeholder
-    image_plhdr = tf.placeholder(tf.float32, shape=(1,) + input_shape)
+    restorer = load_weights(weights_path)
 
-    # create the VGG19 subset network
-    net = VGG19ConvSub(image_plhdr)
-
-    # normalize and reshape to input shape
-    content_input = net.preprocess_input(content_image)
-
-    # example: run a session where the output for layer conv2_1 is predicted and the feature maps are saved
+    """Example: run a session where multiple conv layers are calculated and the feature maps are saved"""
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        net.load_weights(weights_path, sess)
-        activations = sess.run(net.conv2_1, {image_plhdr: content_input})
-        utils.dump_layer_activation(activations, "features/conv2_1_%i.png")
+        restorer.init(sess)
+
+        content_conv4_2 = sess.run(content_vgg19.conv4_2)
+        style_conv1_1 = sess.run(style_vgg19.conv1_1)
+        style_conv2_1 = sess.run(style_vgg19.conv2_1)
+        style_conv3_1 = sess.run(style_vgg19.conv3_1)
+        style_conv4_1 = sess.run(style_vgg19.conv4_1)
+        style_conv5_1 = sess.run(style_vgg19.conv5_1)
+
+        save_layer_activations(content_conv4_2, "features/content/conv4_2_%i.png")
+        save_layer_activations(style_conv1_1, "features/style/conv1_1_%i.png")
+        save_layer_activations(style_conv2_1, "features/style/conv2_1_%i.png")
+        save_layer_activations(style_conv3_1, "features/style/conv3_1_%i.png")
+        save_layer_activations(style_conv4_1, "features/style/conv4_1_%i.png")
+        save_layer_activations(style_conv5_1, "features/style/conv5_1_%i.png")
 
 
 def load_image(filename):
     image = cv2.imread(filename)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
+    image = preprocess(image)
     return image
 
-if __name__ == '__main__':
 
-    # parse program arguments
+if __name__ == '__main__':
+    """Parse program arguments"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--content_image_path", type=str, help="content image path")
-    parser.add_argument("--style_image_path", type=str, help="style image path")
+    parser.add_argument("--content_image_path", type=str, help="content image path", default="")
+    parser.add_argument("--style_image_path", type=str, help="style image path", default="")
     parser.add_argument("--weights_data", type=str,
                         help="path to weights data (vgg19.npy). Download if file does not exist.", default="vgg19.npy")
     parser.add_argument("--output_image_path", type=str, help="output image path, default: result.jpg",
                         default="result.jpg")
     args = parser.parse_args()
 
-    # check if file exists for all parsed filenames
+    """Check if image files exist"""
     for path in [args.content_image_path, args.style_image_path]:
-        if not os.path.isfile(path):
-            print("File %s does not exist." % path)
+        if path is None or not os.path.isfile(path):
+            print("Image file %s does not exist." % path)
             exit(0)
-
-    if not os.path.isfile(args.weights_data):
-        # todo: download weights data (and do not exit)
-        exit(0)
 
     content_image = load_image(args.content_image_path)
     style_image = load_image(args.style_image_path)
