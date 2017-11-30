@@ -9,10 +9,11 @@ from utils import save_layer_activations
 from vgg19 import VGG19ConvSub, load_weights, preprocess
 
 
-def style_transfer(content_image, style_image, weights_path):
+def style_transfer(content_image, style_image, init_image, weights_path):
     """Create the VGG19 subset network"""
     content_vgg19 = VGG19ConvSub('content_vgg19', tf.constant(content_image))
     style_vgg19 = VGG19ConvSub('style_vgg19', tf.constant(style_image))
+    transfer_vgg19 = VGG19ConvSub('transfer_vgg19', tf.Variable(init_image))
 
     restorer = load_weights(weights_path)
 
@@ -27,6 +28,7 @@ def style_transfer(content_image, style_image, weights_path):
         style_conv3_1 = sess.run(style_vgg19.conv3_1)
         style_conv4_1 = sess.run(style_vgg19.conv4_1)
         style_conv5_1 = sess.run(style_vgg19.conv5_1)
+        transfer_conv4_2 = sess.run(transfer_vgg19.conv4_2)
 
         save_layer_activations(content_conv4_2, "features/content/conv4_2_%i.png")
         save_layer_activations(style_conv1_1, "features/style/conv1_1_%i.png")
@@ -34,6 +36,7 @@ def style_transfer(content_image, style_image, weights_path):
         save_layer_activations(style_conv3_1, "features/style/conv3_1_%i.png")
         save_layer_activations(style_conv4_1, "features/style/conv4_1_%i.png")
         save_layer_activations(style_conv5_1, "features/style/conv5_1_%i.png")
+        save_layer_activations(transfer_conv4_2, "features/transfer/conv4_2_%i.png")
 
 
 def load_image(filename):
@@ -62,6 +65,7 @@ if __name__ == '__main__':
 
     content_image = load_image(args.content_image_path)
     style_image = load_image(args.style_image_path)
-    result = style_transfer(content_image, style_image, args.weights_data)
+    init_image = np.random.randn(*content_image.shape).astype(np.float32) * 0.0001
+    result = style_transfer(content_image, style_image, init_image, args.weights_data)
 
     # todo: write image
