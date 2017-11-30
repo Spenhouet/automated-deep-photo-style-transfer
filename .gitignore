@@ -1,6 +1,7 @@
 #### joe made this: http://goel.io/joe
 
 paper/*.pdf
+.idea
 
 #### cuda ####
 *.i
