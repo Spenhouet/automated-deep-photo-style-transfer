@@ -13,18 +13,7 @@ from tensorpack.tfutils.symbolic_functions import *
 Subset of the VGG19 model with all convolution layers, trained on ImageNet
 """
 
-
-def preprocess(img):
-    """
-    Preprocess an numpy image of shape (height, width, 3), type np.float32 and values between 0 and 255
-    to the required input shape
-    """
-    img = img[None, :, :, :]
-    VGG_MEAN = [103.939, 116.779, 123.68]
-    img[:, :, :, 0] -= VGG_MEAN[2]
-    img[:, :, :, 1] -= VGG_MEAN[1]
-    img[:, :, :, 2] -= VGG_MEAN[0]
-    return img
+VGG_MEAN = [103.939, 116.779, 123.68]
 
 
 def load_weights(weights_filename):
@@ -72,9 +61,3 @@ class VGG19ConvSub:
             self.pool4 = MaxPooling('pool4' + name, self.relu4_4, 2)
 
             self.conv5_1 = Conv2D('conv5_1' + name, self.pool4, 512)
-            self.relu5_1 = tf.nn.relu(self.conv5_1, 'relu5_1')
-            self.conv5_2 = Conv2D('conv5_2' + name, self.relu5_1, 512)
-            self.relu5_2 = tf.nn.relu(self.conv5_2, 'relu5_2')
-            self.conv5_3 = Conv2D('conv5_3' + name, self.relu5_2, 512)
-            self.relu5_3 = tf.nn.relu(self.conv5_3, 'relu5_3')
-            self.conv5_4 = Conv2D('conv5_4' + name, self.relu5_3, 512)
