@@ -41,9 +41,9 @@ def style_transfer(content_image, style_image, init_image, weights_path):
         style_loss = STYLE_WEIGHT * style_loss
         total_loss = content_loss + style_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=ADAM_LEARNING_RATE, beta1=ADAM_BETA1, beta2=ADAM_BETA2, epsilon=ADAM_EPSILON)
-        gradient = optimizer.compute_gradients(total_loss, [init_image])
-        train_op = optimizer.apply_gradients(gradient)
+        optimizer = tf.train.AdamOptimizer(learning_rate=ADAM_LEARNING_RATE, beta1=ADAM_BETA1, beta2=ADAM_BETA2,
+                                           epsilon=ADAM_EPSILON)
+        train_op = optimizer.minimize(total_loss, var_list=[init_image])
 
     with tf.Session(graph=g) as sess:
         sess.run(tf.global_variables_initializer())
