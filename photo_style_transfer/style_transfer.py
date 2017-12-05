@@ -108,7 +108,7 @@ def calculate_layer_style_loss(style_layer, transfer_layer):
 
 def calculate_gram_matrix(convolution_layer):
     matrix = tf.reshape(convolution_layer, shape=[-1, convolution_layer.shape[3]])
-    return tf.matmul(tf.transpose(matrix), matrix)
+    return tf.matmul(matrix, matrix, transpose_a=True)
 
 
 def load_image(filename):
