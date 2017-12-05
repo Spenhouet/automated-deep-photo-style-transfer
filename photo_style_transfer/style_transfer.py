@@ -5,7 +5,18 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 
-from photo_style_transfer.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+
+ADAM_LEARNING_RATE = 1.0
+ADAM_BETA1 = 0.9
+ADAM_BETA2 = 0.999
+ADAM_EPSILON = 1e-08
+
+INIT_IMAGE_SCALING = 0.0001
+INTERMEDIATE_RESULT_INTERVAL = 100
+NUM_ITERATIONS = 2000
+CONTENT_WEIGHT = 1e-3
+STYLE_WEIGHT = 1
 
 
 def style_transfer(content_image, style_image, init_image, weights_path):
@@ -26,11 +37,11 @@ def style_transfer(content_image, style_image, init_image, weights_path):
         style_loss += (1. / 5.) * calculate_layer_style_loss(tf.constant(style_conv4_1), vgg19.conv4_1)
         style_loss += (1. / 5.) * calculate_layer_style_loss(tf.constant(style_conv5_1), vgg19.conv5_1)
 
-        content_loss = 1e-3 * content_loss
-        style_loss = 1 * style_loss
+        content_loss = CONTENT_WEIGHT * content_loss
+        style_loss = STYLE_WEIGHT * style_loss
         total_loss = content_loss + style_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=1.0, beta1=0.9, beta2=0.999, epsilon=1e-08)
+        optimizer = tf.train.AdamOptimizer(learning_rate=ADAM_LEARNING_RATE, beta1=ADAM_BETA1, beta2=ADAM_BETA2, epsilon=ADAM_EPSILON)
         gradient = optimizer.compute_gradients(total_loss, [init_image])
         train_op = optimizer.apply_gradients(gradient)
 
@@ -38,7 +49,7 @@ def style_transfer(content_image, style_image, init_image, weights_path):
         sess.run(tf.global_variables_initializer())
         weight_restorer.init(sess)
         min_loss, best_image = float("inf"), None
-        for i in range(1, 2000):
+        for i in range(NUM_ITERATIONS):
             _, result_image, loss, c_loss, s_loss = sess.run(
                 [train_op, init_image, total_loss, content_loss, style_loss])
 
@@ -47,7 +58,7 @@ def style_transfer(content_image, style_image, init_image, weights_path):
             if loss < min_loss:
                 min_loss, best_image = loss, result_image
 
-            if i % 100 == 0:
+            if i % INTERMEDIATE_RESULT_INTERVAL == 0:
                 save_image(best_image, "transfer/res_{}.png".format(i))
 
         return best_image
@@ -126,6 +137,13 @@ if __name__ == '__main__':
                         help="path to weights data (vgg19.npy). Download if file does not exist.", default="vgg19.npy")
     parser.add_argument("--output_image_path", type=str, help="output image path, default: result.jpg",
                         default="result.jpg")
+
+    parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.', default="0")
+    args = parser.parse_args()
+
+    if args.gpu:
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+
     args = parser.parse_args()
 
     """Check if image files exist"""
@@ -134,8 +152,12 @@ if __name__ == '__main__':
             print("Image file %s does not exist." % path)
             exit(0)
 
+    # create directory transfer if it does not exist
+    if not os.path.exists("transfer"):
+        os.makedirs("transfer")
+
     content_image = load_image(args.content_image_path)
     style_image = load_image(args.style_image_path)
-    init_image = np.random.randn(*content_image.shape).astype(np.float32) * 0.0001
+    init_image = np.random.randn(*content_image.shape).astype(np.float32) * INIT_IMAGE_SCALING
     result = style_transfer(content_image, style_image, init_image, args.weights_data)
     save_image(result, "final_transfer_image.png")
