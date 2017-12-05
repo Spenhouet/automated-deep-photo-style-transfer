@@ -22,20 +22,29 @@ STYLE_WEIGHT = 1
 def style_transfer(content_image, style_image, init_image, weights_path):
     weight_restorer = load_weights(weights_path)
 
-    content_conv4_2 = calculate_content_layer(content_image, weight_restorer)
-    style_conv1_1, style_conv2_1, style_conv3_1, style_conv4_1, style_conv5_1 = calculate_style_layer(style_image,
-                                                                                                      weight_restorer)
-    g = tf.Graph()
-    with g.as_default():
-        init_image = tf.Variable(init_image)
-        vgg19 = VGG19ConvSub(init_image)
-        content_loss = calculate_layer_content_loss(tf.constant(content_conv4_2), vgg19.conv4_2)
+    image_placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
+    vgg19 = VGG19ConvSub(image_placeholder)
 
-        style_loss = (1. / 5.) * calculate_layer_style_loss(tf.constant(style_conv1_1), vgg19.conv1_1)
-        style_loss += (1. / 5.) * calculate_layer_style_loss(tf.constant(style_conv2_1), vgg19.conv2_1)
-        style_loss += (1. / 5.) * calculate_layer_style_loss(tf.constant(style_conv3_1), vgg19.conv3_1)
-        style_loss += (1. / 5.) * calculate_layer_style_loss(tf.constant(style_conv4_1), vgg19.conv4_1)
-        style_loss += (1. / 5.) * calculate_layer_style_loss(tf.constant(style_conv5_1), vgg19.conv5_1)
+    with tf.Session() as sess:
+        transfer_image = tf.Variable(init_image)
+
+        sess.run(tf.global_variables_initializer())
+        weight_restorer.init(sess)
+        content_conv4_2 = sess.run(fetches=vgg19.conv4_2, feed_dict={image_placeholder: content_image})
+        style_conv1_1, style_conv2_1, style_conv3_1, style_conv4_1, style_conv5_1 = sess.run(
+            fetches=[vgg19.conv1_1, vgg19.conv2_1, vgg19.conv3_1, vgg19.conv4_1, vgg19.conv5_1],
+            feed_dict={image_placeholder: style_image})
+
+        with tf.variable_scope("", reuse=True):
+            vgg19 = VGG19ConvSub(transfer_image)
+
+        content_loss = calculate_layer_content_loss(content_conv4_2, vgg19.conv4_2)
+
+        style_loss = (1. / 5.) * calculate_layer_style_loss(style_conv1_1, vgg19.conv1_1)
+        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv2_1, vgg19.conv2_1)
+        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv3_1, vgg19.conv3_1)
+        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv4_1, vgg19.conv4_1)
+        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv5_1, vgg19.conv5_1)
 
         content_loss = CONTENT_WEIGHT * content_loss
         style_loss = STYLE_WEIGHT * style_loss
@@ -43,15 +52,13 @@ def style_transfer(content_image, style_image, init_image, weights_path):
 
         optimizer = tf.train.AdamOptimizer(learning_rate=ADAM_LEARNING_RATE, beta1=ADAM_BETA1, beta2=ADAM_BETA2,
                                            epsilon=ADAM_EPSILON)
-        train_op = optimizer.minimize(total_loss, var_list=[init_image])
+        train_op = optimizer.minimize(total_loss, var_list=[transfer_image])
+        sess.run(adam_variables_initializer(optimizer, [transfer_image]))
 
-    with tf.Session(graph=g) as sess:
-        sess.run(tf.global_variables_initializer())
-        weight_restorer.init(sess)
         min_loss, best_image = float("inf"), None
         for i in range(NUM_ITERATIONS):
             _, result_image, loss, c_loss, s_loss = sess.run(
-                [train_op, init_image, total_loss, content_loss, style_loss])
+                fetches=[train_op, transfer_image, total_loss, content_loss, style_loss])
 
             print("Iteration {0}, Loss {1}, Content loss {2}, Style loss {3}".format(i, loss, c_loss, s_loss))
 
@@ -64,31 +71,12 @@ def style_transfer(content_image, style_image, init_image, weights_path):
         return best_image
 
 
-def calculate_content_layer(image, weight_restorer):
-    g = tf.Graph()
-    with g.as_default():
-        vgg19 = VGG19ConvSub(tf.constant(image))
-
-    with tf.Session(graph=g) as sess:
-        sess.run(tf.global_variables_initializer())
-        weight_restorer.init(sess)
-        conv4_2 = sess.run(vgg19.conv4_2)
-
-    return conv4_2
-
-
-def calculate_style_layer(image, weight_restorer):
-    g = tf.Graph()
-    with g.as_default():
-        vgg19 = VGG19ConvSub(tf.constant(image))
-
-    with tf.Session(graph=g) as sess:
-        sess.run(tf.global_variables_initializer())
-        weight_restorer.init(sess)
-        conv1_1, conv2_1, conv3_1, conv4_1, conv5_1 = sess.run(
-            [vgg19.conv1_1, vgg19.conv2_1, vgg19.conv3_1, vgg19.conv4_1, vgg19.conv5_1])
-
-    return conv1_1, conv2_1, conv3_1, conv4_1, conv5_1
+def adam_variables_initializer(adam_opt, var_list):
+    adam_vars = [adam_opt.get_slot(var, name)
+                 for name in adam_opt.get_slot_names()
+                 for var in var_list if var is not None]
+    adam_vars.extend(list(adam_opt._get_beta_accumulators()))
+    return tf.variables_initializer(adam_vars)
 
 
 def calculate_layer_content_loss(content_layer, transfer_layer):
@@ -97,7 +85,7 @@ def calculate_layer_content_loss(content_layer, transfer_layer):
 
 def calculate_layer_style_loss(style_layer, transfer_layer):
     feature_map_count = np.float32(transfer_layer.shape[3].value)
-    feature_map_size = np.float32(transfer_layer.shape[1].value * transfer_layer.shape[2].value)
+    feature_map_size = np.float32(transfer_layer.shape[1].value) * np.float32(transfer_layer.shape[2].value)
 
     style_gram_matrix = calculate_gram_matrix(style_layer)
     transfer_gram_matrix = calculate_gram_matrix(transfer_layer)
