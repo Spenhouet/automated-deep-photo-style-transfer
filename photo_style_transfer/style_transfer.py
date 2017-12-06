@@ -7,20 +7,9 @@ from PIL import Image
 
 from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 
-ADAM_LEARNING_RATE = 1.0
-ADAM_BETA1 = 0.9
-ADAM_BETA2 = 0.999
-ADAM_EPSILON = 1e-08
 
-INIT_IMAGE_SCALING = 0.0001
-INTERMEDIATE_RESULT_INTERVAL = 100
-NUM_ITERATIONS = 2000
-CONTENT_WEIGHT = 1e-3
-STYLE_WEIGHT = 1
-
-
-def style_transfer(content_image, style_image, init_image, weights_path):
-    weight_restorer = load_weights(weights_path)
+def style_transfer(content_image, style_image, init_image, args):
+    weight_restorer = load_weights(args.weights_data)
 
     image_placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
     vgg19 = VGG19ConvSub(image_placeholder)
@@ -46,26 +35,29 @@ def style_transfer(content_image, style_image, init_image, weights_path):
         style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv4_1, vgg19.conv4_1)
         style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv5_1, vgg19.conv5_1)
 
-        content_loss = CONTENT_WEIGHT * content_loss
-        style_loss = STYLE_WEIGHT * style_loss
+        content_loss = args.content_weight * content_loss
+        style_loss = args.style_weight * style_loss
         total_loss = content_loss + style_loss
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=ADAM_LEARNING_RATE, beta1=ADAM_BETA1, beta2=ADAM_BETA2,
-                                           epsilon=ADAM_EPSILON)
+        optimizer = tf.train.AdamOptimizer(learning_rate=args.adam_learning_rate, beta1=args.adam_beta1,
+                                           beta2=args.adam_beta2, epsilon=args.adam_epsilon)
         train_op = optimizer.minimize(total_loss, var_list=[transfer_image])
         sess.run(adam_variables_initializer(optimizer, [transfer_image]))
 
         min_loss, best_image = float("inf"), None
-        for i in range(NUM_ITERATIONS):
+        for i in range(args.iterations + 1):
             _, result_image, loss, c_loss, s_loss = sess.run(
                 fetches=[train_op, transfer_image, total_loss, content_loss, style_loss])
 
-            print("Iteration {0}, Loss {1}, Content loss {2}, Style loss {3}".format(i, loss, c_loss, s_loss))
+            if i % args.print_loss_interval == 0:
+                print(
+                    "Iteration: {0:5} \t Total loss: {1:15.2f} \t Content loss: {2:15.2f} \t Style loss: {3:15.2f}".format(
+                        i, loss, c_loss, s_loss))
 
             if loss < min_loss:
                 min_loss, best_image = loss, result_image
 
-            if i % INTERMEDIATE_RESULT_INTERVAL == 0:
+            if i % args.intermediate_result_interval == 0:
                 save_image(best_image, "transfer/res_{}.png".format(i))
 
         return best_image
@@ -116,21 +108,50 @@ def save_image(image, filename):
     result.save(filename)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """Parse program arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_image_path", type=str, help="content image path", default="")
     parser.add_argument("--style_image_path", type=str, help="style image path", default="")
     parser.add_argument("--weights_data", type=str,
                         help="path to weights data (vgg19.npy). Download if file does not exist.", default="vgg19.npy")
-    parser.add_argument("--output_image_path", type=str, help="output image path, default: result.jpg",
+    parser.add_argument("--output_image_path", type=str, help="Output image path, default: result.jpg",
                         default="result.jpg")
+    parser.add_argument("--iterations", type=int, help="Number of iterations, default: 2000",
+                        default=2000)
+    parser.add_argument("--intermediate_result_interval", type=int,
+                        help="Interval of iterations until a intermediate result is saved., default: 100",
+                        default=100)
+    parser.add_argument("--print_loss_interval", type=int,
+                        help="Interval of iterations until the current loss is printed to console., default: 1",
+                        default=1)
+    parser.add_argument("--content_weight", type=float,
+                        help="Weight of the content loss., default: 1e-3",
+                        default=1e-3)
+    parser.add_argument("--style_weight", type=float,
+                        help="Weight of the style loss., default: 1",
+                        default=1)
+    parser.add_argument("--init_image_scaling", type=float,
+                        help="Scaling factor for the init image (random noise)., default: 0.0001",
+                        default=0.0001)
+    parser.add_argument("--adam_learning_rate", type=float,
+                        help="Learning rate for the adam optimizer., default: 1.0",
+                        default=1.0)
+    parser.add_argument("--adam_beta1", type=float,
+                        help="Beta1 for the adam optimizer., default: 0.9",
+                        default=0.9)
+    parser.add_argument("--adam_beta2", type=float,
+                        help="Beta2 for the adam optimizer., default: 0.999",
+                        default=0.999)
+    parser.add_argument("--adam_epsilon", type=float,
+                        help="Epsilon for the adam optimizer., default: 1e-08",
+                        default=1e-08)
 
-    parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.', default="0")
+    parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
     args = parser.parse_args()
 
     if args.gpu:
-        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
     args = parser.parse_args()
 
@@ -146,6 +167,6 @@ if __name__ == '__main__':
 
     content_image = load_image(args.content_image_path)
     style_image = load_image(args.style_image_path)
-    init_image = np.random.randn(*content_image.shape).astype(np.float32) * INIT_IMAGE_SCALING
-    result = style_transfer(content_image, style_image, init_image, args.weights_data)
+    init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
+    result = style_transfer(content_image, style_image, init_image, args)
     save_image(result, "final_transfer_image.png")
