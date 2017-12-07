@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-python3 ../style_transfer.py --content_image_path content.png --style_image_path style.png --gpu 0
+python ../style_transfer.py --content_image content.png --style_image style.png --content_segmentation content_seg.png --style_segmentation style_seg.png --gpu 0

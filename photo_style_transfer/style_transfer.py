@@ -4,9 +4,12 @@ import os
 import numpy as np
 import tensorflow as tf
 from PIL import Image
+import cv2
 
 from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 
+# max number of labels for detecting invalid segmentation images
+SEGMENTATION_MAX_LABELS = 20
 
 def style_transfer(content_image, style_image, init_image, args):
     weight_restorer = load_weights(args.weights_data)
@@ -90,12 +93,29 @@ def calculate_gram_matrix(convolution_layer):
     matrix = tf.reshape(convolution_layer, shape=[-1, convolution_layer.shape[3]])
     return tf.matmul(matrix, matrix, transpose_a=True)
 
-
-def load_image(filename):
+# load image and preprocess as VGG19 input
+def load_input_image(filename):
     image = np.array(Image.open(filename).convert("RGB"), dtype=np.float32)
     image = image[:, :, ::-1] - VGG_MEAN
     image = image.reshape((1, image.shape[0], image.shape[1], 3)).astype(np.float32)
     return image
+
+def load_segmentation(filename):
+    image = np.array(Image.open(filename).convert("RGB"), dtype=np.uint8)
+    image.reshape((1, image.shape[0], image.shape[1], 3))
+
+    def iterate_pixels(image):
+        for y in range(image.shape[0]):
+            for x in range(image.shape[1]):
+                yield tuple(image[y, x])
+
+    unique_colors = set([tuple(color) for color in iterate_pixels(image)])
+
+    if len(unique_colors) > SEGMENTATION_MAX_LABELS:
+        raise ValueError("Found %i colors in segmentation, %i allowed." % (len(unique_colors), SEGMENTATION_MAX_LABELS))
+
+    return unique_colors, image
+
 
 
 def save_image(image, filename):
@@ -107,15 +127,26 @@ def save_image(image, filename):
     result = Image.fromarray(image)
     result.save(filename)
 
+# if images are of different shape, resize image1 to match shape of image0
+def match_shape(image0, image1):
+    if image1.shape == image1.shape:
+        return image1
+    else:
+        shape = (image0.shape[1], image0.shape[0])
+        return cv2.resize(image1, shape)
+
+
 
 if __name__ == "__main__":
     """Parse program arguments"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--content_image_path", type=str, help="content image path", default="")
-    parser.add_argument("--style_image_path", type=str, help="style image path", default="")
+    parser.add_argument("--content_image", type=str, help="content image path", default="")
+    parser.add_argument("--style_image", type=str, help="style image path", default="")
+    parser.add_argument("--content_segmentation", type=str, help="content segmentation path", default="")
+    parser.add_argument("--style_segmentation", type=str, help="content segmentation path", default="")
     parser.add_argument("--weights_data", type=str,
                         help="path to weights data (vgg19.npy). Download if file does not exist.", default="vgg19.npy")
-    parser.add_argument("--output_image_path", type=str, help="Output image path, default: result.jpg",
+    parser.add_argument("--output_image", type=str, help="Output image path, default: result.jpg",
                         default="result.jpg")
     parser.add_argument("--iterations", type=int, help="Number of iterations, default: 2000",
                         default=2000)
@@ -156,7 +187,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     """Check if image files exist"""
-    for path in [args.content_image_path, args.style_image_path]:
+    for path in [args.content_image, args.style_image, args.content_segmentation, args.style_segmentation]:
         if path is None or not os.path.isfile(path):
             print("Image file %s does not exist." % path)
             exit(0)
@@ -165,8 +196,19 @@ if __name__ == "__main__":
     if not os.path.exists("transfer"):
         os.makedirs("transfer")
 
-    content_image = load_image(args.content_image_path)
-    style_image = load_image(args.style_image_path)
+    content_image = load_input_image(args.content_image)
+    style_image = load_input_image(args.style_image)
+
+    content_labels, content_seg = load_segmentation(args.content_segmentation)
+    style_labels, style_seg = load_segmentation(args.style_segmentation)
+
+    # enforce image shapes on segmentation shapes
+    content_seg = match_shape(content_image, content_seg)
+    style_seg = match_shape(style_image, style_seg)
+
+    # ...
+
     init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
+
     result = style_transfer(content_image, style_image, init_image, args)
     save_image(result, "final_transfer_image.png")
