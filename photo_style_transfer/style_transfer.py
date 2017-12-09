@@ -116,6 +116,8 @@ def load_segmentation(filename):
 
     return unique_colors, image
 
+def extract_mask_for_label(segmentation, label):
+    return np.all(segmentation == label, axis=-1)
 
 
 def save_image(image, filename):
@@ -206,7 +208,14 @@ if __name__ == "__main__":
     content_seg = match_shape(content_image, content_seg)
     style_seg = match_shape(style_image, style_seg)
 
-    # ...
+    # compute all segmentation labels as union of style labels and content labels
+    labels = tuple(content_labels | style_labels)
+
+    # create binary masks for each label and both segmentation images
+    content_segmentation_masks = [extract_mask_for_label(content_seg, label) for label in labels]
+    style_segmentation_masks = [extract_mask_for_label(style_seg, label) for label in labels]
+
+    # TODO: ...
 
     init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
 
