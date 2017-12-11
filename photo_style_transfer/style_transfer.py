@@ -11,7 +11,7 @@ from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 # max number of labels for detecting invalid segmentation images
 SEGMENTATION_MAX_LABELS = 20
 
-def style_transfer(content_image, style_image, init_image, args):
+def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
     weight_restorer = load_weights(args.weights_data)
 
     image_placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
@@ -32,11 +32,11 @@ def style_transfer(content_image, style_image, init_image, args):
 
         content_loss = calculate_layer_content_loss(content_conv4_2, vgg19.conv4_2)
 
-        style_loss = (1. / 5.) * calculate_layer_style_loss(style_conv1_1, vgg19.conv1_1)
-        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv2_1, vgg19.conv2_1)
-        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv3_1, vgg19.conv3_1)
-        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv4_1, vgg19.conv4_1)
-        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv5_1, vgg19.conv5_1)
+        style_loss = (1. / 5.) * calculate_layer_style_loss(style_conv1_1, vgg19.conv1_1, content_masks, style_masks)
+        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv2_1, vgg19.conv2_1, content_masks, style_masks)
+        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv3_1, vgg19.conv3_1, content_masks, style_masks)
+        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv4_1, vgg19.conv4_1, content_masks, style_masks)
+        style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv5_1, vgg19.conv5_1, content_masks, style_masks)
 
         content_loss = args.content_weight * content_loss
         style_loss = args.style_weight * style_loss
@@ -78,20 +78,45 @@ def calculate_layer_content_loss(content_layer, transfer_layer):
     return tf.reduce_mean(tf.squared_difference(content_layer, transfer_layer))
 
 
-def calculate_layer_style_loss(style_layer, transfer_layer):
+def calculate_layer_style_loss(style_layer, transfer_layer, content_masks, style_masks):
+
+    # scale masks to current layer
+    content_size = tf.TensorShape(transfer_layer.shape[1:3])
+    style_size = tf.TensorShape(style_layer.shape[1:3])
+
+    print(style_size, content_size)
+
+    def resize_masks(masks, size):
+        return [tf.image.resize_bilinear(mask, size) for mask in masks]
+
+    style_masks = resize_masks(style_masks, style_size)
+    content_masks = resize_masks(content_masks, content_size)
+
     feature_map_count = np.float32(transfer_layer.shape[3].value)
     feature_map_size = np.float32(transfer_layer.shape[1].value) * np.float32(transfer_layer.shape[2].value)
 
-    style_gram_matrix = calculate_gram_matrix(style_layer)
-    transfer_gram_matrix = calculate_gram_matrix(transfer_layer)
+    style_loss_per_channel = []
+    for content_mask, style_mask in zip(content_masks, style_masks):
+        transfer_gram_matrix = calculate_gram_matrix(transfer_layer, content_mask)
+        style_gram_matrix = calculate_gram_matrix(style_layer, style_mask)
 
-    mean_square_error = tf.reduce_mean(tf.squared_difference(style_gram_matrix, transfer_gram_matrix))
-    return mean_square_error / (4 * tf.square(feature_map_count) * tf.square(feature_map_size))
+        mean_square_error = tf.reduce_mean(tf.squared_difference(style_gram_matrix, transfer_gram_matrix))
+        style_loss_per_channel.append(mean_square_error / (4 * tf.square(feature_map_count) * tf.square(feature_map_size)))
+
+    # compute sum of losses over all segmentation channels (TODO: find more elegant way)
+    style_loss = style_loss_per_channel[0]
+    for style_loss_channel in style_loss_per_channel[1:]:
+        style_loss = style_loss + style_loss_channel
+
+    return style_loss
 
 
-def calculate_gram_matrix(convolution_layer):
+def calculate_gram_matrix(convolution_layer, mask):
     matrix = tf.reshape(convolution_layer, shape=[-1, convolution_layer.shape[3]])
-    return tf.matmul(matrix, matrix, transpose_a=True)
+    print("matrix shape: " + str(matrix.shape))
+    mask_reshaped = tf.reshape(mask, shape=[matrix.shape[0], 1])
+    matrix_masked = matrix * mask_reshaped
+    return tf.matmul(matrix_masked, matrix_masked, transpose_a=True)
 
 # load image and preprocess as VGG19 input
 def load_input_image(filename):
@@ -117,7 +142,14 @@ def load_segmentation(filename):
     return unique_colors, image
 
 def extract_mask_for_label(segmentation, label):
-    return np.all(segmentation == label, axis=-1)
+
+    # mask in numpy representation
+    mask = np.all(segmentation == label, axis=-1).astype(np.float32)
+
+    # mask as tensor
+    mask_tensor = tf.expand_dims(tf.expand_dims(tf.constant(mask), 0), -1)
+
+    return mask_tensor
 
 
 def save_image(image, filename):
@@ -215,9 +247,11 @@ if __name__ == "__main__":
     content_segmentation_masks = [extract_mask_for_label(content_seg, label) for label in labels]
     style_segmentation_masks = [extract_mask_for_label(style_seg, label) for label in labels]
 
+
+
     # TODO: ...
 
     init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
 
-    result = style_transfer(content_image, style_image, init_image, args)
+    result = style_transfer(content_image, style_image, content_segmentation_masks, style_segmentation_masks, init_image, args)
     save_image(result, "final_transfer_image.png")
