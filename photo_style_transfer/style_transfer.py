@@ -84,8 +84,6 @@ def calculate_layer_style_loss(style_layer, transfer_layer, content_masks, style
     content_size = tf.TensorShape(transfer_layer.shape[1:3])
     style_size = tf.TensorShape(style_layer.shape[1:3])
 
-    print(style_size, content_size)
-
     def resize_masks(masks, size):
         return [tf.image.resize_bilinear(mask, size) for mask in masks]
 
@@ -95,25 +93,21 @@ def calculate_layer_style_loss(style_layer, transfer_layer, content_masks, style
     feature_map_count = np.float32(transfer_layer.shape[3].value)
     feature_map_size = np.float32(transfer_layer.shape[1].value) * np.float32(transfer_layer.shape[2].value)
 
-    style_loss_per_channel = []
+    means_per_channel = []
     for content_mask, style_mask in zip(content_masks, style_masks):
         transfer_gram_matrix = calculate_gram_matrix(transfer_layer, content_mask)
         style_gram_matrix = calculate_gram_matrix(style_layer, style_mask)
 
-        mean_square_error = tf.reduce_mean(tf.squared_difference(style_gram_matrix, transfer_gram_matrix))
-        style_loss_per_channel.append(mean_square_error / (4 * tf.square(feature_map_count) * tf.square(feature_map_size)))
+        mean = tf.reduce_mean(tf.squared_difference(style_gram_matrix, transfer_gram_matrix))
+        means_per_channel.append(mean / (2 * tf.square(feature_map_count) * tf.square(feature_map_size)))
 
-    # compute sum of losses over all segmentation channels (TODO: find more elegant way)
-    style_loss = style_loss_per_channel[0]
-    for style_loss_channel in style_loss_per_channel[1:]:
-        style_loss = style_loss + style_loss_channel
+    style_loss = tf.reduce_sum(means_per_channel)
 
     return style_loss
 
 
 def calculate_gram_matrix(convolution_layer, mask):
     matrix = tf.reshape(convolution_layer, shape=[-1, convolution_layer.shape[3]])
-    print("matrix shape: " + str(matrix.shape))
     mask_reshaped = tf.reshape(mask, shape=[matrix.shape[0], 1])
     matrix_masked = matrix * mask_reshaped
     return tf.matmul(matrix_masked, matrix_masked, transpose_a=True)
@@ -192,10 +186,10 @@ if __name__ == "__main__":
                         default=1)
     parser.add_argument("--content_weight", type=float,
                         help="Weight of the content loss., default: 1e-3",
-                        default=1e-3)
+                        default=1)
     parser.add_argument("--style_weight", type=float,
                         help="Weight of the style loss., default: 1",
-                        default=1)
+                        default=100)
     parser.add_argument("--init_image_scaling", type=float,
                         help="Scaling factor for the init image (random noise)., default: 0.0001",
                         default=0.0001)
@@ -246,10 +240,6 @@ if __name__ == "__main__":
     # create binary masks for each label and both segmentation images
     content_segmentation_masks = [extract_mask_for_label(content_seg, label) for label in labels]
     style_segmentation_masks = [extract_mask_for_label(style_seg, label) for label in labels]
-
-
-
-    # TODO: ...
 
     init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
 
