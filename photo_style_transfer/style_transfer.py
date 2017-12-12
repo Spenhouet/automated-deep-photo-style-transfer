@@ -5,11 +5,13 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 import cv2
+from matting import *
 
 from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 
 # max number of labels for detecting invalid segmentation images
 SEGMENTATION_MAX_LABELS = 20
+
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
     weight_restorer = load_weights(args.weights_data)
@@ -38,9 +40,12 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
         style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv4_1, vgg19.conv4_1, content_masks, style_masks)
         style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv5_1, vgg19.conv5_1, content_masks, style_masks)
 
+        photorealism_regularization = calculate_photorealism_regularization(transfer_image, content_image)
+
         content_loss = args.content_weight * content_loss
         style_loss = args.style_weight * style_loss
-        total_loss = content_loss + style_loss
+        photorealism_regularization = args.regularization_weight * photorealism_regularization
+        total_loss = content_loss + style_loss + photorealism_regularization
 
         optimizer = tf.train.AdamOptimizer(learning_rate=args.adam_learning_rate, beta1=args.adam_beta1,
                                            beta2=args.adam_beta2, epsilon=args.adam_epsilon)
@@ -104,6 +109,27 @@ def calculate_layer_style_loss(style_layer, transfer_layer, content_masks, style
     style_loss = tf.reduce_sum(means_per_channel)
 
     return style_loss
+
+
+def calculate_photorealism_regularization(output, content_image):
+
+    # normalize content image and out for matting and regularization computation
+    content_image = content_image / 255.0
+    output = output / 255.0
+
+    # compute matting laplacian
+    matting = compute_matting_laplacian(content_image[0, ...])
+
+    # compute photorealism regularization loss
+    regularization_channels = []
+    for output_channel in tf.unstack(output, axis=-1):
+        channel_vector = tf.reshape(tf.transpose(output_channel), shape=[-1])
+        matmul_right = tf.sparse_tensor_dense_matmul(matting, tf.expand_dims(channel_vector, -1))
+        matmul_left =  tf.matmul(tf.expand_dims(channel_vector, 0), matmul_right)
+        regularization_channels.append(matmul_left)
+
+    regularization = tf.reduce_sum(regularization_channels)
+    return regularization
 
 
 def calculate_gram_matrix(convolution_layer, mask):
@@ -185,11 +211,14 @@ if __name__ == "__main__":
                         help="Interval of iterations until the current loss is printed to console., default: 1",
                         default=1)
     parser.add_argument("--content_weight", type=float,
-                        help="Weight of the content loss., default: 1e-3",
+                        help="Weight of the content loss.",
                         default=1)
     parser.add_argument("--style_weight", type=float,
-                        help="Weight of the style loss., default: 1",
+                        help="Weight of the style loss.",
                         default=100)
+    parser.add_argument("--regularization_weight", type=float,
+                        help="Weight of the photorealism regularization.",
+                        default=10**4)
     parser.add_argument("--init_image_scaling", type=float,
                         help="Scaling factor for the init image (random noise)., default: 0.0001",
                         default=0.0001)
