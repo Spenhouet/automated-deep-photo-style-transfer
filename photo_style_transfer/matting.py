@@ -1,57 +1,61 @@
-from __future__ import division
-
 import numpy as np
 import scipy.sparse
-from numpy.lib.stride_tricks import as_strided
+import scipy.sparse.linalg
 import tensorflow as tf
 
 
-def compute_matting_laplacian(image, consts=None, epsilon=1e-5, win_rad=1):
-
-    neb_size = (win_rad * 2 + 1) ** 2
-    h, w, c = image.shape
+def compute_matting_laplacian(image, consts=None, epsilon=1e-5, window_radius=1):
+    num_window_pixels = (window_radius * 2 + 1) ** 2
+    height, width, channels = image.shape
     if consts is None:
-        consts = np.zeros(shape=(h, w))
-    img_size = w * h
-    consts = scipy.ndimage.morphology.grey_erosion(consts, footprint=np.ones(shape=(win_rad * 2 + 1, win_rad * 2 + 1)))
+        consts = np.zeros(shape=(height, width))
 
-    indsM = np.reshape(np.array(range(img_size)), newshape=(h, w), order='F')
-    tlen = int((-consts[win_rad:-win_rad, win_rad:-win_rad] + 1).sum() * (neb_size ** 2))
-    row_inds = np.zeros(tlen)
-    col_inds = np.zeros(tlen)
-    vals = np.zeros(tlen)
-    l = 0
-    for j in range(win_rad, w - win_rad):
-        for i in range(win_rad, h - win_rad):
-            if consts[i, j]:
+    # compute erosion with window square as mask
+    consts = scipy.ndimage.morphology.grey_erosion(consts, footprint=np.ones(shape=(window_radius * 2 + 1, window_radius * 2 + 1)))
+
+    num_image_pixels = width * height
+
+    # value and index buffers for laplacian in COO format
+    laplacian_indices = []
+    laplacian_values = []
+
+    # cache pixel indices in a matrix
+    pixels_indices = np.reshape(np.array(range(num_image_pixels)), newshape=(height, width), order='F')
+
+    # iterate over image pixels
+    for y in range(window_radius, width - window_radius):
+        for x in range(window_radius, height - window_radius):
+            if consts[x, y]:
                 continue
-            win_inds = indsM[i - win_rad:i + win_rad + 1, j - win_rad: j + win_rad + 1]
-            win_inds = win_inds.ravel(order='F')
-            win_i = image[i - win_rad:i + win_rad + 1, j - win_rad: j + win_rad + 1, :]
-            win_i = win_i.reshape((neb_size, c), order='F')
-            win_mu = np.mean(win_i, axis=0).reshape(c, 1)
-            win_var = np.linalg.inv(
-                np.matmul(win_i.T, win_i) / neb_size - np.matmul(win_mu, win_mu.T) + epsilon / neb_size * np.identity(
-                    c))
+                
+            window_indices = pixels_indices[x - window_radius:x + window_radius + 1,
+                             y - window_radius: y + window_radius + 1].ravel()
+            window_values = image[x - window_radius:x + window_radius + 1, y - window_radius: y + window_radius + 1, :]
+            window_values = window_values.reshape((num_window_pixels, channels))
 
-            win_i2 = win_i - np.repeat(win_mu.transpose(), neb_size, 0)
-            tvals = (1 + np.matmul(np.matmul(win_i2, win_var), win_i2.T)) / neb_size
+            mean = np.mean(window_values, axis=0).reshape(channels, 1)
+            cov = np.matmul(window_values.T, window_values) / num_window_pixels - np.matmul(mean, mean.T)
 
-            ind_mat = np.broadcast_to(win_inds, (neb_size, neb_size))
-            row_inds[l: (neb_size ** 2 + l)] = ind_mat.ravel(order='C')
-            col_inds[l: neb_size ** 2 + l] = ind_mat.ravel(order='F')
-            vals[l: neb_size ** 2 + l] = tvals.ravel(order='F')
-            l += neb_size ** 2
+            tmp0 = np.linalg.inv(cov + epsilon / num_window_pixels * np.identity(channels))
 
-    vals = vals.ravel(order='F')[0: l]
-    row_inds = row_inds.ravel(order='F')[0: l]
-    col_inds = col_inds.ravel(order='F')[0: l]
-    laplacian_csr = scipy.sparse.csr_matrix((vals, (row_inds, col_inds)), shape=(img_size, img_size))
+            tmp1 = window_values - np.repeat(mean.transpose(), num_window_pixels, 0)
+            window_values = (1 + np.matmul(np.matmul(tmp1, tmp0), tmp1.T)) / num_window_pixels
 
-    sum_a = laplacian_csr.sum(axis=1).T.tolist()[0]
-    laplacian_csr = scipy.sparse.diags([sum_a], [0], shape=(img_size, img_size)) - laplacian_csr
+            ind_mat = np.broadcast_to(window_indices, (num_window_pixels, num_window_pixels))
 
-    laplacian_coo = laplacian_csr.tocoo()
+            laplacian_indices.extend(zip(ind_mat.ravel(order='F'), ind_mat.ravel(order='C')))
+            laplacian_values.extend(window_values.ravel())
+
+    # create sparse matrix in coo format
+    laplacian_coo = scipy.sparse.coo_matrix((laplacian_values, zip(*laplacian_indices)), shape=(num_image_pixels, num_image_pixels))
+
+    # compute final laplacian
+    sum_a = laplacian_coo.sum(axis=1).T.tolist()[0]
+    laplacian_coo = (scipy.sparse.diags([sum_a], [0], shape=(num_image_pixels, num_image_pixels)) - laplacian_coo).tocoo()
+
+    # create a sparse tensor from the coo laplacian
     indices = np.mat([laplacian_coo.row, laplacian_coo.col]).transpose()
     laplacian_tf = tf.to_float(tf.SparseTensor(indices, laplacian_coo.data, laplacian_coo.shape))
     return laplacian_tf
+
+

@@ -139,10 +139,12 @@ def calculate_gram_matrix(convolution_layer, mask):
     return tf.matmul(matrix_masked, matrix_masked, transpose_a=True)
 
 # load image and preprocess as VGG19 input
-def load_input_image(filename):
+def load_input_image(filename, normalize=False):
     image = np.array(Image.open(filename).convert("RGB"), dtype=np.float32)
     image = image[:, :, ::-1] - VGG_MEAN
     image = image.reshape((1, image.shape[0], image.shape[1], 3)).astype(np.float32)
+    if normalize:
+        image = image / 255.0
     return image
 
 def load_segmentation(filename):
