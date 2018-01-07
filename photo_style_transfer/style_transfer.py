@@ -49,6 +49,7 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
 
         optimizer = tf.train.AdamOptimizer(learning_rate=args.adam_learning_rate, beta1=args.adam_beta1,
                                            beta2=args.adam_beta2, epsilon=args.adam_epsilon)
+
         train_op = optimizer.minimize(total_loss, var_list=[transfer_image])
         sess.run(adam_variables_initializer(optimizer, [transfer_image]))
 
