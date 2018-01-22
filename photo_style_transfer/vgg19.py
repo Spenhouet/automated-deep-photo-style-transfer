@@ -19,7 +19,7 @@ VGG_MEAN = [103.939, 116.779, 123.68]
 def load_weights(weights_filename):
     """Load VGG19 weights for a given session (download if necessary)"""
     if not os.path.isfile(weights_filename):
-        urllib.request.urlretrieve("http://models.tensorpack.com/caffe/vgg19.npy", weights_filename)
+        urllib.request.urlretrieve("http://model.tensorpack.com/caffe/vgg19.npy", weights_filename)
 
     param_dict = np.load(weights_filename, encoding="latin1").item()
     return DictRestore(dict(param_dict))
