@@ -4,7 +4,7 @@
 (80, 50, 50)	floor, flooring
 (4, 200, 3)	tree
 (120, 120, 80)	ceiling
-(140, 140, 140)	road, route
+(150, 150, 150)	road, route
 (204, 5, 255)	bed 
 (230, 230, 230)	windowpane, window 
 (4, 250, 7)	grass
