@@ -10,7 +10,7 @@ def read_segmentation_labels(filename):
     with open(filename, 'r+') as file:
         lines = file.read().split('\n')
 
-        for line in lines[:10]:
+        for line in lines:
             color_str, classes_str = line.split('\t')
             color = literal_eval(color_str)
             classes = [class_name.strip() for class_name in classes_str.split(',')]
