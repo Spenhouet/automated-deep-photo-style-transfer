@@ -32,7 +32,7 @@ def read_labelcolours(matfn):
 
 def decode_labels(mask, img_shape, num_classes):
     if num_classes == 150:
-        color_table = read_labelcolours(matfn)
+        color_table = read_labelcolours(os.path.join(os.path.dirname(__file__), matfn))
     else:
         color_table = label_colours
 

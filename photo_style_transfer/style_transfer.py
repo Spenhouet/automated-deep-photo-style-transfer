@@ -174,8 +174,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_image", type=str, help="content image path", default="")
     parser.add_argument("--style_image", type=str, help="style image path", default="")
-    parser.add_argument("--content_segmentation", type=str, help="content segmentation path", default="")
-    parser.add_argument("--style_segmentation", type=str, help="content segmentation path", default="")
     parser.add_argument("--weights_data", type=str,
                         help="path to weights data (vgg19.npy). Download if file does not exist.", default="vgg19.npy")
     parser.add_argument("--output_image", type=str, help="Output image path, default: result.jpg",
@@ -212,6 +210,7 @@ if __name__ == "__main__":
     parser.add_argument("--adam_epsilon", type=float,
                         help="Epsilon for the adam optimizer., default: 1e-08",
                         default=1e-08)
+    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.5", default=0.5)
 
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
     args = parser.parse_args()
@@ -222,7 +221,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     """Check if image files exist"""
-    for path in [args.content_image, args.style_image, args.content_segmentation, args.style_segmentation]:
+    for path in [args.content_image, args.style_image]:
         if path is None or not os.path.isfile(path):
             print("Image file %s does not exist." % path)
             exit(0)
@@ -234,8 +233,8 @@ if __name__ == "__main__":
     content_image = load_input_image(args.content_image)
     style_image = load_input_image(args.style_image)
 
-    content_labels, content_seg = load_segmentation(args.content_segmentation)
-    style_labels, style_seg = load_segmentation(args.style_segmentation)
+    content_labels, content_seg = compute_segmentation(args.content_image, args.semantic_thresh)
+    style_labels, style_seg = compute_segmentation(args.style_image, args.semantic_thresh)
 
     # enforce image shapes on segmentation shapes
     content_seg = match_shape(content_image, content_seg)

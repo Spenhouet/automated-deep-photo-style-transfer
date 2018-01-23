@@ -19,7 +19,7 @@ cityscapes_param = {'crop_size': [720, 720],
                     'model': PSPNet101}
 
 SAVE_DIR = './output/'
-SNAPSHOT_DIR = './model/'
+SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), 'model/')
 
 def get_arguments():
     parser = argparse.ArgumentParser(description="Reproduced PSPNet")
@@ -50,6 +50,61 @@ def load(saver, sess, ckpt_path):
     saver.restore(sess, ckpt_path)
     print("Restored model parameters from {}".format(ckpt_path))
 
+def create_segmentation_ade20k(img_path):
+
+    param = ADE20k_param
+
+    crop_size = param['crop_size']
+    num_classes = param['num_classes']
+    PSPNet = param['model']
+
+    # preprocess images
+    img, filename = load_img(img_path)
+    img_shape = tf.shape(img)
+    h, w = (tf.maximum(crop_size[0], img_shape[0]), tf.maximum(crop_size[1], img_shape[1]))
+
+    img = preprocess(img, h, w)
+
+    # Create network.
+    net = PSPNet({'data': img}, is_training=False, num_classes=num_classes)
+    with tf.variable_scope('', reuse=True):
+        flipped_img = tf.image.flip_left_right(tf.squeeze(img))
+        flipped_img = tf.expand_dims(flipped_img, dim=0)
+        net2 = PSPNet({'data': flipped_img}, is_training=False, num_classes=num_classes)
+
+    raw_output = net.layers['conv6']
+
+    # Predictions.
+    raw_output_up = tf.image.resize_bilinear(raw_output, size=[h, w], align_corners=True)
+    raw_output_up = tf.image.crop_to_bounding_box(raw_output_up, 0, 0, img_shape[0], img_shape[1])
+    raw_output_up = tf.argmax(raw_output_up, dimension=3)
+    pred = decode_labels(raw_output_up, img_shape, num_classes)
+
+    # Init tf Session
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
+    init = tf.global_variables_initializer()
+
+    sess.run(init)
+
+    restore_var = tf.global_variables()
+
+    ckpt = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
+    if ckpt and ckpt.model_checkpoint_path:
+        loader = tf.train.Saver(var_list=restore_var)
+        load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
+        load(loader, sess, ckpt.model_checkpoint_path)
+    else:
+        print('No checkpoint file found.')
+
+    preds = sess.run(pred)
+
+    save_dir = "./"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    return preds[0]
+
 def main():
     args = get_arguments()
 
@@ -67,6 +122,7 @@ def main():
     img, filename = load_img(args.img_path)
     img_shape = tf.shape(img)
     h, w = (tf.maximum(crop_size[0], img_shape[0]), tf.maximum(crop_size[1], img_shape[1]))
+
     img = preprocess(img, h, w)
 
     # Create network.
