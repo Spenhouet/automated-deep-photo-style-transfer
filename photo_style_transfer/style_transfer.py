@@ -1,16 +1,17 @@
 import argparse
 import os
 
+import cv2
 import numpy as np
 import tensorflow as tf
 from PIL import Image
-import cv2
 from matting import *
-
 from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 
 # max number of labels for detecting invalid segmentation images
-SEGMENTATION_MAX_LABELS = 20
+from segmentation import *
+
+
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
@@ -147,32 +148,6 @@ def load_input_image(filename, normalize=False):
     if normalize:
         image = image / 255.0
     return image
-
-def load_segmentation(filename):
-    image = np.array(Image.open(filename).convert("RGB"), dtype=np.uint8)
-    image.reshape((1, image.shape[0], image.shape[1], 3))
-
-    def iterate_pixels(image):
-        for y in range(image.shape[0]):
-            for x in range(image.shape[1]):
-                yield tuple(image[y, x])
-
-    unique_colors = set([tuple(color) for color in iterate_pixels(image)])
-
-    if len(unique_colors) > SEGMENTATION_MAX_LABELS:
-        raise ValueError("Found %i colors in segmentation, %i allowed." % (len(unique_colors), SEGMENTATION_MAX_LABELS))
-
-    return unique_colors, image
-
-def extract_mask_for_label(segmentation, label):
-
-    # mask in numpy representation
-    mask = np.all(segmentation == label, axis=-1).astype(np.float32)
-
-    # mask as tensor
-    mask_tensor = tf.expand_dims(tf.expand_dims(tf.constant(mask), 0), -1)
-
-    return mask_tensor
 
 
 def save_image(image, filename):
