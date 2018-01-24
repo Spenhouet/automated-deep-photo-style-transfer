@@ -50,27 +50,17 @@ def load(saver, sess, ckpt_path):
     saver.restore(sess, ckpt_path)
     print("Restored model parameters from {}".format(ckpt_path))
 
-def create_segmentation_ade20k(img_path):
+def create_segmentation_ade20k(img_path, net, sess, placeholder):
 
     param = ADE20k_param
 
     crop_size = param['crop_size']
     num_classes = param['num_classes']
-    PSPNet = param['model']
 
     # preprocess images
     img, filename = load_img(img_path)
     img_shape = tf.shape(img)
     h, w = (tf.maximum(crop_size[0], img_shape[0]), tf.maximum(crop_size[1], img_shape[1]))
-
-    img = preprocess(img, h, w)
-
-    # Create network.
-    net = PSPNet({'data': img}, is_training=False, num_classes=num_classes)
-    with tf.variable_scope('', reuse=True):
-        flipped_img = tf.image.flip_left_right(tf.squeeze(img))
-        flipped_img = tf.expand_dims(flipped_img, dim=0)
-        net2 = PSPNet({'data': flipped_img}, is_training=False, num_classes=num_classes)
 
     raw_output = net.layers['conv6']
 
@@ -81,9 +71,6 @@ def create_segmentation_ade20k(img_path):
     pred = decode_labels(raw_output_up, img_shape, num_classes)
 
     # Init tf Session
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.Session(config=config)
     init = tf.global_variables_initializer()
 
     sess.run(init)
@@ -98,11 +85,14 @@ def create_segmentation_ade20k(img_path):
     else:
         print('No checkpoint file found.')
 
-    preds = sess.run(pred)
+    img_tf = preprocess(img, h, w)
+    img = sess.run(img_tf)
+    preds = sess.run(pred, feed_dict={placeholder: img})
 
     save_dir = "./"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+
     return preds[0]
 
 def main():

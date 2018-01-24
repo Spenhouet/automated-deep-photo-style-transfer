@@ -110,19 +110,20 @@ semantically similar labels. (0: all classes are merged, 1: classes remain disti
 dump_results: write intermediate segmentation results to file system
 return: list of labels, segmentation
 """
-def compute_segmentation(filename, semantic_threshold=1, dump_results=False):
+def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1, dump_results=True):
 
     segmentation_filename = change_filename(filename, '_seg', '.png')
 
     # only create segmentation mask if it does not exist yet
     if os.path.exists(segmentation_filename):
+        print("Segmentation file '%s' already exists, use existing." % segmentation_filename)
         return load_segmentation(segmentation_filename)
 
     # create PSPNet segmentation
-    segmentation = create_segmentation_ade20k(filename)
+    segmentation = create_segmentation_ade20k(filename, net, sess, placeholder)
 
     if dump_results:
-        cv2.imwrite(change_filename(filename, '_seq_raw', '.png'), bgr2rgb(segmentation))
+        cv2.imwrite(change_filename(filename, '_seg_raw', '.png'), bgr2rgb(segmentation))
 
     if semantic_threshold <= 1:
         unique_colors = extract_unique_colors(segmentation)
@@ -137,10 +138,10 @@ def compute_segmentation(filename, semantic_threshold=1, dump_results=False):
 
         # group the segmentation colors accordingly
         color_groups = [pair[0] for pair in merged]
-        grouped = image_group_colors(segmentation, color_groups)
+        segmentation = image_group_colors(segmentation, color_groups)
 
     if dump_results:
-        cv2.imwrite(change_filename(filename, '_seq', '.png'), bgr2rgb(segmentation))
+        cv2.imwrite(segmentation_filename, bgr2rgb(segmentation))
 
     unique_colors = extract_unique_colors(segmentation)
     return unique_colors, segmentation

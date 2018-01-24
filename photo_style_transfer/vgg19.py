@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import os
 
-from six.moves import urllib
+import urllib
 from tensorpack.models.conv2d import *
 from tensorpack.models.pool import *
 from tensorpack.tfutils.argscope import *
@@ -19,9 +19,9 @@ VGG_MEAN = [103.939, 116.779, 123.68]
 def load_weights(weights_filename):
     """Load VGG19 weights for a given session (download if necessary)"""
     if not os.path.isfile(weights_filename):
-        urllib.request.urlretrieve("http://model.tensorpack.com/caffe/vgg19.npy", weights_filename)
+        urllib.urlretrieve("http://models.tensorpack.com/caffe/vgg19.npz", weights_filename)
 
-    param_dict = np.load(weights_filename, encoding="latin1").item()
+    param_dict = np.load(weights_filename)
     return DictRestore(dict(param_dict))
 
 

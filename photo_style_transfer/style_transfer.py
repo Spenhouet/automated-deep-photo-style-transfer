@@ -7,11 +7,10 @@ import tensorflow as tf
 from PIL import Image
 from matting import *
 from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+from PSPNet.model import *
 
 # max number of labels for detecting invalid segmentation images
 from segmentation import *
-
-
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
@@ -175,7 +174,7 @@ if __name__ == "__main__":
     parser.add_argument("--content_image", type=str, help="content image path", default="")
     parser.add_argument("--style_image", type=str, help="style image path", default="")
     parser.add_argument("--weights_data", type=str,
-                        help="path to weights data (vgg19.npy). Download if file does not exist.", default="vgg19.npy")
+                        help="path to weights data (vgg19.npz). Download if file does not exist.", default="vgg19.npz")
     parser.add_argument("--output_image", type=str, help="Output image path, default: result.jpg",
                         default="result.jpg")
     parser.add_argument("--iterations", type=int, help="Number of iterations, default: 2000",
@@ -210,7 +209,7 @@ if __name__ == "__main__":
     parser.add_argument("--adam_epsilon", type=float,
                         help="Epsilon for the adam optimizer., default: 1e-08",
                         default=1e-08)
-    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.5", default=0.5)
+    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.4", default=0.4)
 
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
     args = parser.parse_args()
@@ -233,8 +232,17 @@ if __name__ == "__main__":
     content_image = load_input_image(args.content_image)
     style_image = load_input_image(args.style_image)
 
-    content_labels, content_seg = compute_segmentation(args.content_image, args.semantic_thresh)
-    style_labels, style_seg = compute_segmentation(args.style_image, args.semantic_thresh)
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+
+    with tf.Session(config=config) as sess:
+
+        placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
+        net = PSPNet50({'data': placeholder}, is_training=False, num_classes=150)
+
+        content_labels, content_seg = compute_segmentation(args.content_image, net, sess, placeholder, args.semantic_thresh)
+        style_labels, style_seg = compute_segmentation(args.style_image, net, sess, placeholder, args.semantic_thresh)
+
 
     # enforce image shapes on segmentation shapes
     content_seg = match_shape(content_image, content_seg)
