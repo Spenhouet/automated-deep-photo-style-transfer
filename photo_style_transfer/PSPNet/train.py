@@ -1,5 +1,5 @@
 """
-This code is based on DrSleep's framework: https://github.com/DrSleep/tensorflow-deeplab-resnet 
+This code is based on DrSleep's framework: https://github.com/DrSleep/tensorflow-deeplab-resnet
 """
 
 from __future__ import print_function
@@ -153,16 +153,16 @@ def main():
     l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'weights' in v.name]
     reduced_loss = tf.reduce_mean(loss) + tf.add_n(l2_losses)
 
-    # Using Poly learning rate policy 
+    # Using Poly learning rate policy
     base_lr = tf.constant(args.learning_rate)
     step_ph = tf.placeholder(dtype=tf.float32, shape=())
     learning_rate = tf.scalar_mul(base_lr, tf.pow((1 - step_ph / args.num_steps), args.power))
 
     # Gets moving_mean and moving_variance update operations from tf.GraphKeys.UPDATE_OPS
-    if args.update_mean_var == False:
-        update_ops = None
-    else:
+    if args.update_mean_var:
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    else:
+        update_ops = None
 
     with tf.control_dependencies(update_ops):
         opt_conv = tf.train.MomentumOptimizer(learning_rate, args.momentum)
@@ -180,7 +180,7 @@ def main():
 
         train_op = tf.group(train_op_conv, train_op_fc_w, train_op_fc_b)
 
-    # Set up tf session and initialize variables. 
+    # Set up tf session and initialize variables.
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
@@ -191,14 +191,12 @@ def main():
     # Saver for storing checkpoints of the model.
     saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=10)
 
-    ckpt = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
-    if ckpt and ckpt.model_checkpoint_path:
+    checkpoint = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
+    if checkpoint and checkpoint.model_checkpoint_path:
         loader = tf.train.Saver(var_list=restore_var)
-        load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
-        load(loader, sess, ckpt.model_checkpoint_path)
+        load(loader, sess, checkpoint.model_checkpoint_path)
     else:
         print('No checkpoint file found.')
-        load_step = 0
 
     # Start queue threads.
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)

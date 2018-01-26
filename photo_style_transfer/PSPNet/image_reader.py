@@ -34,7 +34,6 @@ def random_crop_and_pad_image_and_labels(image, label, crop_h, crop_w, ignore_la
                                                 tf.maximum(crop_w, image_shape[1]))
 
     last_image_dim = tf.shape(image)[-1]
-    last_label_dim = tf.shape(label)[-1]
     combined_crop = tf.random_crop(combined_pad, [crop_h, crop_w, 4])
     img_crop = combined_crop[:, :, :last_image_dim]
     label_crop = combined_crop[:, :, last_image_dim:]
@@ -100,9 +99,9 @@ def read_images_from_disk(input_queue, input_size, random_scale, random_mirror, 
 
 
 class ImageReader(object):
-    '''Generic ImageReader which reads images and corresponding segmentation
+    """Generic ImageReader which reads images and corresponding segmentation
        masks from the disk, and enqueues them into a TensorFlow queue.
-    '''
+    """
 
     def __init__(self, data_dir, data_list, input_size,
                  random_scale, random_mirror, ignore_label, img_mean, coord):

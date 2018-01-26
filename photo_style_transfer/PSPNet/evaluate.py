@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import argparse
-import os
 import time
 
 import numpy as np
@@ -88,9 +87,6 @@ def main():
         flipped_img = tf.expand_dims(flipped_img, dim=0)
         net2 = PSPNet101({'data': flipped_img}, is_training=False, num_classes=num_classes)
 
-    # Which variables to load.
-    restore_var = tf.global_variables()
-
     # Predictions.
     raw_output = net.layers['conv6']
 
@@ -110,7 +106,7 @@ def main():
     gt = tf.cast(tf.gather(raw_gt, indices), tf.int32)
     pred = tf.gather(pred_flatten, indices)
 
-    mIoU, update_op = tf.contrib.metrics.streaming_mean_iou(pred, gt, num_classes=num_classes)
+    mean_iou, update_op = tf.contrib.metrics.streaming_mean_iou(pred, gt, num_classes=num_classes)
 
     # Set up tf session and initialize variables.
     config = tf.ConfigProto()
@@ -123,11 +119,10 @@ def main():
 
     restore_var = tf.global_variables()
 
-    ckpt = tf.train.get_checkpoint_state(args.model)
-    if ckpt and ckpt.model_checkpoint_path:
+    checkpoint = tf.train.get_checkpoint_state(args.model)
+    if checkpoint and checkpoint.model_checkpoint_path:
         loader = tf.train.Saver(var_list=restore_var)
-        load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
-        load(loader, sess, ckpt.model_checkpoint_path)
+        load(loader, sess, checkpoint.model_checkpoint_path)
     else:
         print('No checkpoint file found.')
 
@@ -143,7 +138,7 @@ def main():
         if step % 10 == 0:
             print('Finish {0}/{1}'.format(step, num_steps))
 
-    print('mIoU: {1}'.format(step, sess.run(mIoU)))
+    print('mIoU: {1}'.format(step, sess.run(mean_iou)))
 
     coord.request_stop()
     coord.join(threads)

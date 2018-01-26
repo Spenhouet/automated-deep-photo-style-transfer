@@ -1,17 +1,21 @@
 import numpy as np
+import scipy.ndimage
 import scipy.sparse
 import scipy.sparse.linalg
 import tensorflow as tf
 
 
 def compute_matting_laplacian(image, consts=None, epsilon=1e-5, window_radius=1):
+    print("Compute matting laplacian started")
+
     num_window_pixels = (window_radius * 2 + 1) ** 2
     height, width, channels = image.shape
     if consts is None:
         consts = np.zeros(shape=(height, width))
 
     # compute erosion with window square as mask
-    consts = scipy.ndimage.morphology.grey_erosion(consts, footprint=np.ones(shape=(window_radius * 2 + 1, window_radius * 2 + 1)))
+    consts = scipy.ndimage.morphology.grey_erosion(consts, footprint=np.ones(
+        shape=(window_radius * 2 + 1, window_radius * 2 + 1)))
 
     num_image_pixels = width * height
 
@@ -27,10 +31,11 @@ def compute_matting_laplacian(image, consts=None, epsilon=1e-5, window_radius=1)
         for x in range(window_radius, height - window_radius):
             if consts[x, y]:
                 continue
-                
-            window_indices = pixels_indices[x - window_radius:x + window_radius + 1,
-                             y - window_radius: y + window_radius + 1].ravel()
-            window_values = image[x - window_radius:x + window_radius + 1, y - window_radius: y + window_radius + 1, :]
+
+            window_x_start, window_x_end = x - window_radius, x + window_radius + 1
+            window_y_start, window_y_end = y - window_radius, y + window_radius + 1
+            window_indices = pixels_indices[window_x_start:window_x_end, window_y_start:window_y_end].ravel()
+            window_values = image[window_x_start:window_x_end, window_y_start:window_y_end, :]
             window_values = window_values.reshape((num_window_pixels, channels))
 
             mean = np.mean(window_values, axis=0).reshape(channels, 1)
@@ -47,15 +52,18 @@ def compute_matting_laplacian(image, consts=None, epsilon=1e-5, window_radius=1)
             laplacian_values.extend(window_values.ravel())
 
     # create sparse matrix in coo format
-    laplacian_coo = scipy.sparse.coo_matrix((laplacian_values, zip(*laplacian_indices)), shape=(num_image_pixels, num_image_pixels))
+    laplacian_coo = scipy.sparse.coo_matrix((laplacian_values, zip(*laplacian_indices)),
+                                            shape=(num_image_pixels, num_image_pixels))
 
     # compute final laplacian
     sum_a = laplacian_coo.sum(axis=1).T.tolist()[0]
-    laplacian_coo = (scipy.sparse.diags([sum_a], [0], shape=(num_image_pixels, num_image_pixels)) - laplacian_coo).tocoo()
+    laplacian_coo = (scipy.sparse.diags([sum_a], [0], shape=(num_image_pixels, num_image_pixels)) - laplacian_coo) \
+        .tocoo()
 
     # create a sparse tensor from the coo laplacian
     indices = np.mat([laplacian_coo.row, laplacian_coo.col]).transpose()
     laplacian_tf = tf.to_float(tf.SparseTensor(indices, laplacian_coo.data, laplacian_coo.shape))
+
+    print("Compute matting laplacian finished")
+
     return laplacian_tf
-
-

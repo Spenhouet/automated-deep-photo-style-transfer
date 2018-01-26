@@ -1,5 +1,3 @@
-import argparse
-
 from photo_style_transfer.PSPNet.model import *
 from photo_style_transfer.matting import *
 from photo_style_transfer.segmentation import *
@@ -7,6 +5,8 @@ from photo_style_transfer.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
+    print("Style transfer started")
+
     weight_restorer = load_weights(args.weights_data)
 
     image_placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
@@ -53,8 +53,8 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
 
             if i % args.print_loss_interval == 0:
                 print(
-                    "Iteration: {0:5} \t Total loss: {1:15.2f} \t Content loss: {2:15.2f} \t Style loss: {3:15.2f}".format(
-                        i, loss, c_loss, s_loss))
+                    "Iteration: {0:5} \t Total loss: {1:15.2f} \t "
+                    "Content loss: {2:15.2f} \t Style loss: {3:15.2f}".format(i, loss, c_loss, s_loss))
 
             if loss < min_loss:
                 min_loss, best_image = loss, result_image
@@ -62,6 +62,7 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
             if i % args.intermediate_result_interval == 0:
                 save_image(best_image, "transfer/res_{}.png".format(i))
 
+        print("Style transfer finished")
         return best_image
 
 
@@ -161,6 +162,8 @@ def match_shape(image0, image1):
 
 
 if __name__ == "__main__":
+    import argparse
+
     """Parse program arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_image", type=str, help="content image path", default="")

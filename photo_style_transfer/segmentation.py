@@ -13,33 +13,33 @@ SEGMENTATION_MAX_LABELS = 20
 
 
 def read_segmentation_labels(filename, color_filter=None):
-    labels = dict()
+    segmentation_labels = dict()
     with open(filename, 'r+') as file:
         lines = file.read().split('\n')
 
         for line in lines:
             color_str, classes_str = line.split('\t')
-            color = literal_eval(color_str)
+            segmentation_color = literal_eval(color_str)
             classes = [class_name.strip() for class_name in classes_str.split(',')]
 
-            if color_filter and color in color_filter:
-                if color in labels:
+            if color_filter and segmentation_color in color_filter:
+                if segmentation_color in segmentation_labels:
                     # if color appears twice, do not overwrite it, but append it to the existing set of class names
                     # unlikely to happen, but might due to wrong annotation in PSPNet-ADE20k model
-                    labels[color].extend(classes)
+                    segmentation_labels[segmentation_color].extend(classes)
                 else:
-                    labels[color] = classes
+                    segmentation_labels[segmentation_color] = classes
 
-    return labels
+    return segmentation_labels
 
 
-def extract_unique_colors(image):
+def extract_unique_colors(input_image):
     def iterate_pixels(image):
         for y in range(image.shape[0]):
             for x in range(image.shape[1]):
                 yield tuple(image[y, x])
 
-    unique_colors = set([tuple(color) for color in iterate_pixels(image)])
+    unique_colors = set([tuple(current_color) for current_color in iterate_pixels(input_image)])
 
     if len(unique_colors) > SEGMENTATION_MAX_LABELS:
         raise ValueError("Found %i colors in segmentation, %i allowed." % (len(unique_colors), SEGMENTATION_MAX_LABELS))
@@ -67,14 +67,14 @@ def change_filename(filename, suffix, extension=None):
     return path + suffix + extension
 
 
-"""
-image: image containing only colors that are also in groups
-groups: list of list of colors
-return: an image where each color is mapped to the first color in its group
-"""
-
-
 def image_group_colors(image, groups, match_dominant_colors=True):
+    """
+    image: image containing only colors that are also in groups
+    groups: list of list of colors
+    return: an image where each color is mapped to the first color in its group
+    """
+    print("Reducing color segments to one segmentation started")
+
     grouped = image.copy()
 
     if match_dominant_colors:
@@ -82,14 +82,14 @@ def image_group_colors(image, groups, match_dominant_colors=True):
         # this can be used to compare different semantic thresholds but does not effect the final result
         histogram = dict()
         for group in groups:
-            for color in group:
-                histogram[color] = 0
+            for current_color in group:
+                histogram[current_color] = 0
         for y in range(image.shape[0]):
             for x in range(image.shape[1]):
                 histogram[tuple(image[y, x])] += 1
         dominant_colors = []
         for group in groups:
-            group_histogram = dict((color, histogram[color]) for color in group)
+            group_histogram = dict((current_color, histogram[current_color]) for current_color in group)
             dominant_colors.append(max(group_histogram.keys(), key=(lambda k: group_histogram[k])))
     else:
         dominant_colors = [group[0] for group in groups]
@@ -100,6 +100,8 @@ def image_group_colors(image, groups, match_dominant_colors=True):
             for x in range(image.shape[1]):
                 if tuple(image[y, x]) in group:
                     grouped[y, x] = target
+
+    print("Reducing color segments to one segmentation finished")
 
     return grouped
 
@@ -114,11 +116,13 @@ return: list of labels, segmentation
 
 
 def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1, dump_results=True):
+    print("Segmentation started for '{}'".format(filename))
+
     segmentation_filename = change_filename(filename, '_seg', '.png')
 
     # only create segmentation mask if it does not exist yet
     if os.path.exists(segmentation_filename):
-        print("Segmentation file '%s' already exists, use existing." % segmentation_filename)
+        print("Segmentation file '{}' already exists, use existing.".format(segmentation_filename))
         return load_segmentation(segmentation_filename)
 
     # create PSPNet segmentation
@@ -129,7 +133,7 @@ def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1,
 
     if semantic_threshold <= 1:
         unique_colors = extract_unique_colors(segmentation)
-        print("Found %i segmentation classes in image '%s'." % (len(unique_colors), filename))
+        print("Found {} segmentation classes in image '{}'.".format(len(unique_colors), filename))
 
         # read labels for semantic grouping
         labels_filename = os.path.join(os.path.dirname(__file__), 'PSPNet/utils/ade20k_labels.txt')
@@ -146,6 +150,8 @@ def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1,
         cv2.imwrite(segmentation_filename, bgr2rgb(segmentation))
 
     unique_colors = extract_unique_colors(segmentation)
+
+    print("Segmentation finished for '{}'".format(filename))
     return unique_colors, segmentation
 
 

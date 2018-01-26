@@ -5,14 +5,14 @@ import scipy.io
 
 def extract_colors(mat_filename):
     mat = scipy.io.loadmat(mat_filename)
-    colors = mat['colors']
-    return colors
+    colors_mat = mat['colors']
+    return colors_mat
 
 
-def extract_annotations(annotations_file):
-    with open(annotations_file, 'r+') as file:
-        content = file.read()
-        lines = content.split('\n')[1:]
+def extract_annotations(annotations_filename):
+    with open(annotations_filename, 'r+') as annotations_file:
+        annotations_content = annotations_file.read()
+        lines = annotations_content.split('\n')[1:]
         assert (len(lines) == 150)
 
         for line in lines:
@@ -33,10 +33,10 @@ if __name__ == '__main__':
     assert (args.dataset in supported_datasets)
 
     colors_filename = args.dataset + '_colors.mat'
-    annotations_filename = args.dataset + '_annotations.txt'
+    filename = args.dataset + '_annotations.txt'
 
     colors = [str(tuple(color)) for color in extract_colors(colors_filename)]
-    annotations = extract_annotations(annotations_filename)
+    annotations = extract_annotations(filename)
 
     labels = zip(colors, annotations)
 

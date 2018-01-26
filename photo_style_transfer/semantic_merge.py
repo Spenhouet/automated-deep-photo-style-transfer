@@ -1,4 +1,5 @@
 import nltk
+
 nltk.download('wordnet')
 nltk.download('wordnet_ic')
 from sematch.semantic.similarity import WordNetSimilarity
@@ -7,44 +8,33 @@ import argparse
 
 wns = WordNetSimilarity()
 
-def merge_lists(*lists):
-    merged = list()
-    for l in lists:
-        merged.extend(l)
-    return merged
 
-"""
-labels: dict (color -> list of class names)
-return: list of tuples (list of colors, list of class names)
-"""
 def merge_classes(labels, semantic_threshold):
+    """
+    labels: dict (color -> list of class names)
+    return: list of tuples (list of colors, list of class names)
+    """
+    print("Merge classes by semantic similarity started")
 
     matched_color_pairs = list()
 
     for color_a in labels:
         for color_b in labels:
-            if color_a != color_b:
-                if match_labels(labels[color_a], labels[color_b], semantic_threshold):
-                    matched_color_pairs.append((color_a, color_b))
+            if color_a != color_b and match_labels(labels[color_a], labels[color_b], semantic_threshold):
+                matched_color_pairs.append((color_a, color_b))
 
-    subgraphs = split_subgraphs(labels.keys(), matched_color_pairs)
+    sub_graphs = split_subgraphs(labels.keys(), matched_color_pairs)
 
-    """
-    merged = [
-        ( [color1, color2, ...], [class1, class2, class3] ),
-        ...
-    ]
-    """
-    merged = list()
-    for merged_colors in subgraphs:
-
-        merged.append((
+    merged_classes = list()
+    for merged_colors in sub_graphs:
+        merged_classes.append((
             merged_colors,
-            merge_lists([labels[color] for color in merged_colors])
+            [item for sublist in [labels[merged_color] for merged_color in merged_colors] for item in sublist]
         ))
 
-    return merged
+    print("Merge classes by semantic similarity finished")
 
+    return merged_classes
 
 
 def match_labels(labels_a, labels_b, thresh):
@@ -59,13 +49,13 @@ def word_similarity(word_a, word_b):
     return wns.word_similarity(word_a, word_b, 'li')
 
 
-"""
-Split a graph into independent subgraphs
-vertices: list of vertices
-edges: list of edges (tuples)
-return: list of list of vertices
-"""
 def split_subgraphs(vertices, edges):
+    """
+    Split a graph into independent subgraphs
+    vertices: list of vertices
+    edges: list of edges (tuples)
+    return: list of list of vertices
+    """
     groups = list()
 
     vertices = set(vertices)
@@ -79,7 +69,7 @@ def split_subgraphs(vertices, edges):
         seed = vertices.pop()
 
         buffer = [seed]
-        while (len(buffer) > 0):
+        while len(buffer) > 0:
             v = buffer.pop()
             group.append(v)
             conn = get_connected_vertices(v)
@@ -95,14 +85,13 @@ def split_subgraphs(vertices, edges):
 
 
 if __name__ == '__main__':
-
     # only for testing
     parser = argparse.ArgumentParser()
-    parser.add_argument('--thresh', type=float, help="semantic theshold")
+    parser.add_argument('--thresh', type=float, help="semantic threshold")
     parser.add_argument('--filename', type=str, default='PSPNet/utils/ade20k_labels.txt')
     args = parser.parse_args()
 
-    assert(args.thresh != None)
+    assert (args.thresh is not None)
 
     labels = read_segmentation_labels(args.filename)
     merged = merge_classes(labels, args.thresh)

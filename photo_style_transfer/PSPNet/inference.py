@@ -76,11 +76,10 @@ def create_segmentation_ade20k(img_path, net, sess, placeholder):
 
     restore_var = tf.global_variables()
 
-    ckpt = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
-    if ckpt and ckpt.model_checkpoint_path:
+    checkpoint = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
+    if checkpoint and checkpoint.model_checkpoint_path:
         loader = tf.train.Saver(var_list=restore_var)
-        load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
-        load(loader, sess, ckpt.model_checkpoint_path)
+        load(loader, sess, checkpoint.model_checkpoint_path)
     else:
         print('No checkpoint file found.')
 
@@ -146,11 +145,10 @@ def main():
 
     restore_var = tf.global_variables()
 
-    ckpt = tf.train.get_checkpoint_state(args.checkpoints)
-    if ckpt and ckpt.model_checkpoint_path:
+    checkpoint = tf.train.get_checkpoint_state(args.checkpoints)
+    if checkpoint and checkpoint.model_checkpoint_path:
         loader = tf.train.Saver(var_list=restore_var)
-        load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
-        load(loader, sess, ckpt.model_checkpoint_path)
+        load(loader, sess, checkpoint.model_checkpoint_path)
     else:
         print('No checkpoint file found.')
 

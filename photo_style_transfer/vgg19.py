@@ -19,13 +19,19 @@ VGG_MEAN = [103.939, 116.779, 123.68]
 
 def load_weights(weights_filename):
     """Load VGG19 weights for a given session (download if necessary)"""
+
+    print("Load vgg19 weights file started")
+
     if not os.path.isfile(weights_filename):
+        print("Load vgg19 weights file from internet")
         response = requests.get("http://models.tensorpack.com/caffe/vgg19.npz", stream=True)
         with open(weights_filename, 'wb') as out_file:
             shutil.copyfileobj(response.raw, out_file)
         del response
 
     param_dict = np.load(weights_filename)
+
+    print("Load vgg19 weights file finished")
     return DictRestore(dict(param_dict))
 
 
