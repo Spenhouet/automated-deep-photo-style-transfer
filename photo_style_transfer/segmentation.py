@@ -1,11 +1,13 @@
-from ast import literal_eval
-import tensorflow as tf
-import numpy as np
-from PSPNet.inference import create_segmentation_ade20k
-from semantic_merge import merge_classes
-import cv2
 import os
+from ast import literal_eval
+
+import cv2
+import numpy as np
+import tensorflow as tf
 from PIL import Image
+
+from photo_style_transfer.PSPNet.inference import create_segmentation_ade20k
+from photo_style_transfer.semantic_merge import merge_classes
 
 SEGMENTATION_MAX_LABELS = 20
 
@@ -32,7 +34,6 @@ def read_segmentation_labels(filename, color_filter=None):
 
 
 def extract_unique_colors(image):
-
     def iterate_pixels(image):
         for y in range(image.shape[0]):
             for x in range(image.shape[1]):
@@ -54,9 +55,9 @@ def load_segmentation(filename):
 
     return unique_colors, image
 
-def bgr2rgb(bgr_image):
-    return bgr_image[...,::-1]
 
+def bgr2rgb(bgr_image):
+    return bgr_image[..., ::-1]
 
 
 def change_filename(filename, suffix, extension=None):
@@ -71,8 +72,9 @@ image: image containing only colors that are also in groups
 groups: list of list of colors
 return: an image where each color is mapped to the first color in its group
 """
-def image_group_colors(image, groups, match_dominant_colors=True):
 
+
+def image_group_colors(image, groups, match_dominant_colors=True):
     grouped = image.copy()
 
     if match_dominant_colors:
@@ -102,7 +104,6 @@ def image_group_colors(image, groups, match_dominant_colors=True):
     return grouped
 
 
-
 """
 filename: image path
 semantic_threshold: threshold between 0 and 1 for reducing the number of labels in the segmentation by grouping
@@ -110,8 +111,9 @@ semantically similar labels. (0: all classes are merged, 1: classes remain disti
 dump_results: write intermediate segmentation results to file system
 return: list of labels, segmentation
 """
-def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1, dump_results=True):
 
+
+def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1, dump_results=True):
     segmentation_filename = change_filename(filename, '_seg', '.png')
 
     # only create segmentation mask if it does not exist yet
@@ -148,7 +150,6 @@ def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1,
 
 
 def extract_mask_for_label(segmentation, label):
-
     # mask in numpy representation
     mask = np.all(segmentation == label, axis=-1).astype(np.float32)
 
@@ -157,10 +158,12 @@ def extract_mask_for_label(segmentation, label):
 
     return mask_tensor
 
+
 if __name__ == '__main__':
 
     # only for testing
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--filename', type=str)
     args = parser.parse_args()

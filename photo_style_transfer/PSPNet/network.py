@@ -4,10 +4,11 @@ import tensorflow as tf
 DEFAULT_PADDING = 'VALID'
 DEFAULT_DATAFORMAT = 'NHWC'
 
-BN_param_map = {'scale':    'gamma',
-                'offset':   'beta',
+BN_param_map = {'scale': 'gamma',
+                'offset': 'beta',
                 'variance': 'moving_variance',
-                'mean':     'moving_mean'}
+                'mean': 'moving_mean'}
+
 
 def layer(op):
     '''Decorator for composable network layers.'''
@@ -110,12 +111,14 @@ class Network(object):
 
     def get_layer_name(self):
         return layer_name
+
     def validate_padding(self, padding):
         '''Verifies that the padding is one of the supported ones.'''
         assert padding in ('SAME', 'VALID')
+
     @layer
     def zero_padding(self, input, paddings, name):
-        pad_mat = np.array([[0,0], [paddings, paddings], [paddings, paddings], [0, 0]])
+        pad_mat = np.array([[0, 0], [paddings, paddings], [paddings, paddings], [0, 0]])
         return tf.pad(input, paddings=pad_mat, name=name)
 
     @layer
@@ -136,7 +139,7 @@ class Network(object):
         # Get the number of channels in the input
         c_i = input.get_shape()[-1]
 
-        convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding,data_format=DEFAULT_DATAFORMAT)
+        convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding, data_format=DEFAULT_DATAFORMAT)
         with tf.variable_scope(name) as scope:
             kernel = self.make_var('weights', shape=[k_h, k_w, c_i, c_o])
             output = convolve(input, kernel)
@@ -195,11 +198,11 @@ class Network(object):
     def avg_pool(self, input, k_h, k_w, s_h, s_w, name, padding=DEFAULT_PADDING):
         self.validate_padding(padding)
         output = tf.nn.avg_pool(input,
-                              ksize=[1, k_h, k_w, 1],
-                              strides=[1, s_h, s_w, 1],
-                              padding=padding,
-                              name=name,
-                              data_format=DEFAULT_DATAFORMAT)
+                                ksize=[1, k_h, k_w, 1],
+                                strides=[1, s_h, s_w, 1],
+                                padding=padding,
+                                name=name,
+                                data_format=DEFAULT_DATAFORMAT)
         return output
 
     @layer
@@ -246,7 +249,8 @@ class Network(object):
             # in TensorFlow's NHWC ordering (unlike Caffe's NCHW).
             if input_shape[1] == 1 and input_shape[2] == 1:
                 input = tf.squeeze(input, squeeze_dims=[1, 2])
-            else:        return tf.nn.softmax(input, name)
+            else:
+                return tf.nn.softmax(input, name)
 
     @layer
     def batch_normalization(self, input, name, scale_offset=True, relu=False):

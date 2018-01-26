@@ -2,7 +2,7 @@ import nltk
 nltk.download('wordnet')
 nltk.download('wordnet_ic')
 from sematch.semantic.similarity import WordNetSimilarity
-from segmentation import *
+from photo_style_transfer.segmentation import *
 import argparse
 
 wns = WordNetSimilarity()

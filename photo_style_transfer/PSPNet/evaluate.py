@@ -1,28 +1,27 @@
 from __future__ import print_function
+
 import argparse
 import os
-import sys
 import time
 
-from PIL import Image
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 
-from model import PSPNet101
-from image_reader import ImageReader
+from photo_style_transfer.PSPNet.image_reader import ImageReader
+from photo_style_transfer.PSPNet.model import PSPNet101
 
 IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 input_size = [1024, 2048]
 
 SAVE_DIR = './output/'
-SNAPSHOT_DIR = './model/'
+SNAPSHOT_DIR = './weights/'
 
-DATA_DIRECTORY = '/data/cityscapes_dataset/cityscape'
+DATA_DIRECTORY = '/data/ade20k_dataset/'
 DATA_LIST_PATH = './list/eval_list.txt'
 
 num_classes = 19
-ignore_label = 255 # Don't care label
-num_steps = 500 # numbers of image in validation set
+ignore_label = 255  # Don't care label
+num_steps = 500  # numbers of image in validation set
 time_list = []
 
 
@@ -40,9 +39,11 @@ def get_arguments():
 
     return parser.parse_args()
 
+
 def load(saver, sess, ckpt_path):
     saver.restore(sess, ckpt_path)
     print("Restored model parameters from {}".format(ckpt_path))
+
 
 def calculate_time(sess, net):
     start = time.time()
@@ -57,6 +58,7 @@ def calculate_time(sess, net):
 
     time_list.append(inference_time)
     print('average inference time: {}'.format(np.mean(time_list)))
+
 
 def main():
     args = get_arguments()
@@ -76,7 +78,7 @@ def main():
             IMG_MEAN,
             coord)
         image, label = reader.image, reader.label
-    image_batch, label_batch = tf.expand_dims(image, dim=0), tf.expand_dims(label, dim=0) # Add one batch dimension.
+    image_batch, label_batch = tf.expand_dims(image, dim=0), tf.expand_dims(label, dim=0)  # Add one batch dimension.
 
     # Create network.
     net = PSPNet101({'data': image_batch}, is_training=False, num_classes=num_classes)
@@ -102,8 +104,8 @@ def main():
     pred = tf.expand_dims(raw_output_up, dim=3)
 
     # mIoU
-    pred_flatten = tf.reshape(pred, [-1,])
-    raw_gt = tf.reshape(label_batch, [-1,])
+    pred_flatten = tf.reshape(pred, [-1, ])
+    raw_gt = tf.reshape(label_batch, [-1, ])
     indices = tf.squeeze(tf.where(tf.less_equal(raw_gt, num_classes - 1)), 1)
     gt = tf.cast(tf.gather(raw_gt, indices), tf.int32)
     pred = tf.gather(pred_flatten, indices)
@@ -134,7 +136,7 @@ def main():
 
     for step in range(num_steps):
         preds, _ = sess.run([pred, update_op])
-        
+
         if step > 0 and args.measure_time:
             calculate_time(sess, net)
 
@@ -145,6 +147,7 @@ def main():
 
     coord.request_stop()
     coord.join(threads)
+
 
 if __name__ == '__main__':
     main()

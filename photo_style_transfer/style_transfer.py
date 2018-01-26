@@ -1,16 +1,9 @@
 import argparse
-import os
 
-import cv2
-import numpy as np
-import tensorflow as tf
-from PIL import Image
-from matting import *
-from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
-from PSPNet.model import *
-
-# max number of labels for detecting invalid segmentation images
-from segmentation import *
+from photo_style_transfer.PSPNet.model import *
+from photo_style_transfer.matting import *
+from photo_style_transfer.segmentation import *
+from photo_style_transfer.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
@@ -85,7 +78,6 @@ def calculate_layer_content_loss(content_layer, transfer_layer):
 
 
 def calculate_layer_style_loss(style_layer, transfer_layer, content_masks, style_masks):
-
     # scale masks to current layer
     content_size = tf.TensorShape(transfer_layer.shape[1:3])
     style_size = tf.TensorShape(style_layer.shape[1:3])
@@ -113,7 +105,6 @@ def calculate_layer_style_loss(style_layer, transfer_layer, content_masks, style
 
 
 def calculate_photorealism_regularization(output, content_image):
-
     # normalize content image and out for matting and regularization computation
     content_image = content_image / 255.0
     output = output / 255.0
@@ -126,7 +117,7 @@ def calculate_photorealism_regularization(output, content_image):
     for output_channel in tf.unstack(output, axis=-1):
         channel_vector = tf.reshape(tf.transpose(output_channel), shape=[-1])
         matmul_right = tf.sparse_tensor_dense_matmul(matting, tf.expand_dims(channel_vector, -1))
-        matmul_left =  tf.matmul(tf.expand_dims(channel_vector, 0), matmul_right)
+        matmul_left = tf.matmul(tf.expand_dims(channel_vector, 0), matmul_right)
         regularization_channels.append(matmul_left)
 
     regularization = tf.reduce_sum(regularization_channels)
@@ -138,6 +129,7 @@ def calculate_gram_matrix(convolution_layer, mask):
     mask_reshaped = tf.reshape(mask, shape=[matrix.shape[0], 1])
     matrix_masked = matrix * mask_reshaped
     return tf.matmul(matrix_masked, matrix_masked, transpose_a=True)
+
 
 # load image and preprocess as VGG19 input
 def load_input_image(filename, normalize=False):
@@ -158,6 +150,7 @@ def save_image(image, filename):
     result = Image.fromarray(image)
     result.save(filename)
 
+
 # if images are of different shape, resize image1 to match shape of image0
 def match_shape(image0, image1):
     if image1.shape == image1.shape:
@@ -165,7 +158,6 @@ def match_shape(image0, image1):
     else:
         shape = (image0.shape[1], image0.shape[0])
         return cv2.resize(image1, shape)
-
 
 
 if __name__ == "__main__":
@@ -193,7 +185,7 @@ if __name__ == "__main__":
                         default=100)
     parser.add_argument("--regularization_weight", type=float,
                         help="Weight of the photorealism regularization.",
-                        default=10**4)
+                        default=10 ** 4)
     parser.add_argument("--init_image_scaling", type=float,
                         help="Scaling factor for the init image (random noise)., default: 0.0001",
                         default=0.0001)
@@ -209,7 +201,8 @@ if __name__ == "__main__":
     parser.add_argument("--adam_epsilon", type=float,
                         help="Epsilon for the adam optimizer., default: 1e-08",
                         default=1e-08)
-    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.4", default=0.4)
+    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.4",
+                        default=0.4)
 
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
     args = parser.parse_args()
@@ -240,9 +233,9 @@ if __name__ == "__main__":
         placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
         net = PSPNet50({'data': placeholder}, is_training=False, num_classes=150)
 
-        content_labels, content_seg = compute_segmentation(args.content_image, net, sess, placeholder, args.semantic_thresh)
+        content_labels, content_seg = compute_segmentation(args.content_image, net, sess, placeholder,
+                                                           args.semantic_thresh)
         style_labels, style_seg = compute_segmentation(args.style_image, net, sess, placeholder, args.semantic_thresh)
-
 
     # enforce image shapes on segmentation shapes
     content_seg = match_shape(content_image, content_seg)
@@ -257,5 +250,6 @@ if __name__ == "__main__":
 
     init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
 
-    result = style_transfer(content_image, style_image, content_segmentation_masks, style_segmentation_masks, init_image, args)
+    result = style_transfer(content_image, style_image, content_segmentation_masks, style_segmentation_masks,
+                            init_image, args)
     save_image(result, "final_transfer_image.png")

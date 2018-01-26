@@ -1,5 +1,6 @@
 #### model weights
-photo_style_transfer/PSPNet/models/
+photo_style_transfer/PSPNet/data/
+photo_style_transfer/PSPNet/weights/
 
 
 #### joe made this: http://goel.io/joe
