@@ -13,6 +13,7 @@ pip3 install:
 - numpy
 - scipy
 - tensorflow-gpu
+- tensorpack
 - sematch
 
 ### Installing

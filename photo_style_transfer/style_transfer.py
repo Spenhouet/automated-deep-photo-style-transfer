@@ -153,7 +153,7 @@ def save_image(image, filename):
 
 # if images are of different shape, resize image1 to match shape of image0
 def match_shape(image0, image1):
-    if image1.shape == image1.shape:
+    if image0.shape == image1.shape:
         return image1
     else:
         shape = (image0.shape[1], image0.shape[0])
@@ -225,11 +225,7 @@ if __name__ == "__main__":
     content_image = load_input_image(args.content_image)
     style_image = load_input_image(args.style_image)
 
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-
-    with tf.Session(config=config) as sess:
-
+    with tf.Session(graph=tf.Graph()) as sess:
         placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
         net = PSPNet50({'data': placeholder}, is_training=False, num_classes=150)
 
