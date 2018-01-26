@@ -8,7 +8,12 @@ TODO
 
 ### Prerequisites
 
-TODO
+pip3 install:
+- requests
+- numpy
+- scipy
+- tensorflow-gpu
+- sematch
 
 ### Installing
 
