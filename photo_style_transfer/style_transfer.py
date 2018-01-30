@@ -1,7 +1,7 @@
-from photo_style_transfer.PSPNet.model import *
-from photo_style_transfer.matting import *
-from photo_style_transfer.segmentation import *
-from photo_style_transfer.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+from matting import *
+from segmentation import *
+from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+from PSPNet.model import *
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
@@ -166,14 +166,14 @@ if __name__ == "__main__":
 
     """Parse program arguments"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--content_image", type=str, help="content image path", default="")
-    parser.add_argument("--style_image", type=str, help="style image path", default="")
+    parser.add_argument("--content_image", type=str, help="content image path", default="content.png")
+    parser.add_argument("--style_image", type=str, help="style image path", default="style.png")
     parser.add_argument("--weights_data", type=str,
                         help="path to weights data (vgg19.npz). Download if file does not exist.", default="vgg19.npz")
     parser.add_argument("--output_image", type=str, help="Output image path, default: result.jpg",
                         default="result.jpg")
     parser.add_argument("--iterations", type=int, help="Number of iterations, default: 2000",
-                        default=2000)
+                        default=4000)
     parser.add_argument("--intermediate_result_interval", type=int,
                         help="Interval of iterations until a intermediate result is saved., default: 100",
                         default=100)
@@ -206,9 +206,12 @@ if __name__ == "__main__":
                         default=1e-08)
     parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.4",
                         default=0.4)
+    init_image_options = ["noise", "content", "style"]
+    parser.add_argument("--init", type=str, help="Initialization image (%s).", default="noise")
 
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
     args = parser.parse_args()
+    assert(args.init in init_image_options)
 
     if args.gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -247,7 +250,12 @@ if __name__ == "__main__":
     content_segmentation_masks = [extract_mask_for_label(content_seg, label) for label in labels]
     style_segmentation_masks = [extract_mask_for_label(style_seg, label) for label in labels]
 
-    init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
+    if args.init == "noise":
+        init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
+    elif args.init == "content":
+        init_image = content_image
+    elif args.init == "style":
+        init_image = style_image
 
     result = style_transfer(content_image, style_image, content_segmentation_masks, style_segmentation_masks,
                             init_image, args)

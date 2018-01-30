@@ -6,8 +6,8 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 
-from photo_style_transfer.PSPNet.inference import create_segmentation_ade20k
-from photo_style_transfer.semantic_merge import merge_classes
+from PSPNet.inference import create_segmentation_ade20k
+from semantic_merge import merge_classes
 
 SEGMENTATION_MAX_LABELS = 20
 
