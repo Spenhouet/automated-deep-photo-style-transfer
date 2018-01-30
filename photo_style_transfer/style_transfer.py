@@ -208,8 +208,11 @@ if __name__ == "__main__":
                         default=0.4)
     init_image_options = ["noise", "content", "style"]
     parser.add_argument("--init", type=str, help="Initialization image (%s).", default="noise")
-
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
+    parser.add_argument("--cache", type=bool, nargs="?", help="If specified, reuse segmentation images if they exist.",
+                        const=True, default=False)
+
+
     args = parser.parse_args()
     assert(args.init in init_image_options)
 
@@ -236,8 +239,8 @@ if __name__ == "__main__":
         net = PSPNet50({'data': placeholder}, is_training=False, num_classes=150)
 
         content_labels, content_seg = compute_segmentation(args.content_image, net, sess, placeholder,
-                                                           args.semantic_thresh)
-        style_labels, style_seg = compute_segmentation(args.style_image, net, sess, placeholder, args.semantic_thresh)
+                                                           args.semantic_thresh, args.cache)
+        style_labels, style_seg = compute_segmentation(args.style_image, net, sess, placeholder, args.semantic_thresh, args.cache)
 
     # enforce image shapes on segmentation shapes
     content_seg = match_shape(content_image, content_seg)

@@ -115,13 +115,13 @@ return: list of labels, segmentation
 """
 
 
-def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1, dump_results=True):
+def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1, use_cached=False, dump_results=True):
     print("Segmentation started for '{}'".format(filename))
 
     segmentation_filename = change_filename(filename, '_seg', '.png')
 
     # only create segmentation mask if it does not exist yet
-    if os.path.exists(segmentation_filename):
+    if use_cached and os.path.exists(segmentation_filename):
         print("Segmentation file '{}' already exists, use existing.".format(segmentation_filename))
         return load_segmentation(segmentation_filename)
 
