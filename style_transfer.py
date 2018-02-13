@@ -216,7 +216,7 @@ if __name__ == "__main__":
                         default=10 ** 4)
     parser.add_argument("--nima_weight", type=float,
                         help="Weight for nima loss.",
-                        default=10 ** 4)
+                        default=10 ** 5)
     parser.add_argument("--init_image_scaling", type=float,
                         help="Scaling factor for the init image (random noise)., default: 0.0001",
                         default=0.0001)
@@ -233,9 +233,9 @@ if __name__ == "__main__":
                         help="Epsilon for the adam optimizer., default: 1e-08",
                         default=1e-08)
     parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.4",
-                        default=0.4)
+                        default=0.8)
     init_image_options = ["noise", "content", "style"]
-    parser.add_argument("--init", type=str, help="Initialization image (%s).", default="noise")
+    parser.add_argument("--init", type=str, help="Initialization image (%s).", default="content")
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
     parser.add_argument("--cache", type=bool, nargs="?", help="If specified, reuse segmentation images if they exist.",
                         const=True, default=False)
