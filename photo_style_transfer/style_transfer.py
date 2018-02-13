@@ -2,6 +2,7 @@ from matting import *
 from segmentation import *
 from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 from PSPNet.model import *
+from NIMA.evaluate_inception_resnet import get_nima_model
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
@@ -35,10 +36,14 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
 
         photorealism_regularization = calculate_photorealism_regularization(transfer_image, content_image)
 
+        nima_loss = compute_nima_loss(transfer_image)
+
         content_loss = args.content_weight * content_loss
         style_loss = args.style_weight * style_loss
         photorealism_regularization = args.regularization_weight * photorealism_regularization
-        total_loss = content_loss + style_loss + photorealism_regularization
+        nima_loss = args.nima_weight * nima_loss
+
+        total_loss = content_loss + style_loss + photorealism_regularization + nima_loss
 
         optimizer = tf.train.AdamOptimizer(learning_rate=args.adam_learning_rate, beta1=args.adam_beta1,
                                            beta2=args.adam_beta2, epsilon=args.adam_epsilon)
@@ -48,13 +53,14 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
 
         min_loss, best_image = float("inf"), None
         for i in range(args.iterations + 1):
-            _, result_image, loss, c_loss, s_loss = sess.run(
-                fetches=[train_op, transfer_image, total_loss, content_loss, style_loss])
+            _, result_image, loss, c_loss, s_loss, n_loss = sess.run(
+                fetches=[train_op, transfer_image, total_loss, content_loss, style_loss, nima_loss])
 
             if i % args.print_loss_interval == 0:
                 print(
                     "Iteration: {0:5} \t Total loss: {1:15.2f} \t "
-                    "Content loss: {2:15.2f} \t Style loss: {3:15.2f}".format(i, loss, c_loss, s_loss))
+                    "Content loss: {2:15.2f} \t Style loss: {3:15.2f} \t"
+                    "NIMA loss: {4:15.2f} \t".format(i, loss, c_loss, s_loss, n_loss))
 
             if loss < min_loss:
                 min_loss, best_image = loss, result_image
@@ -64,6 +70,25 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
 
         print("Style transfer finished")
         return best_image
+
+
+def compute_nima_loss(transfer_image):
+    input = (transfer_image / 127.5) - 1.0
+    model = get_nima_model(input, '../NIMA/weights')
+    print('nima output', model.output)
+
+    def mean_score(scores):
+        scores = tf.squeeze(scores)
+        si = tf.range(1, 11, 1, dtype=tf.float32)
+        print('scores', scores)
+        print('si', si)
+        return tf.reduce_sum(tf.multiply(si, scores), name='nima_score')
+
+    nima_score = mean_score(model.output)
+    print('nima score', nima_score)
+
+    nima_loss = tf.identity(10.0 - nima_score, name='nima_loss')
+    return nima_loss
 
 
 def adam_variables_initializer(adam_opt, var_list):
@@ -189,6 +214,9 @@ if __name__ == "__main__":
     parser.add_argument("--regularization_weight", type=float,
                         help="Weight of the photorealism regularization.",
                         default=10 ** 4)
+    parser.add_argument("--nima_weight", type=float,
+                        help="Weight for nima loss.",
+                        default=10 ** 4)
     parser.add_argument("--init_image_scaling", type=float,
                         help="Scaling factor for the init image (random noise)., default: 0.0001",
                         default=0.0001)
@@ -212,9 +240,8 @@ if __name__ == "__main__":
     parser.add_argument("--cache", type=bool, nargs="?", help="If specified, reuse segmentation images if they exist.",
                         const=True, default=False)
 
-
     args = parser.parse_args()
-    assert(args.init in init_image_options)
+    assert (args.init in init_image_options)
 
     if args.gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -240,7 +267,8 @@ if __name__ == "__main__":
 
         content_labels, content_seg = compute_segmentation(args.content_image, net, sess, placeholder,
                                                            args.semantic_thresh, args.cache)
-        style_labels, style_seg = compute_segmentation(args.style_image, net, sess, placeholder, args.semantic_thresh, args.cache)
+        style_labels, style_seg = compute_segmentation(args.style_image, net, sess, placeholder, args.semantic_thresh,
+                                                       args.cache)
 
     # enforce image shapes on segmentation shapes
     content_seg = match_shape(content_image, content_seg)
