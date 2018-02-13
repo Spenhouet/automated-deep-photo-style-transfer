@@ -4,8 +4,8 @@ import argparse
 
 from scipy import misc
 
-from photo_style_transfer.PSPNet.model import PSPNet101, PSPNet50
-from photo_style_transfer.PSPNet.tools import *
+from PSPNet.model import PSPNet101, PSPNet50
+from PSPNet.tools import *
 
 ADE20k_param = {'crop_size': [473, 473],
                 'num_classes': 150,

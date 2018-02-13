@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from photo_style_transfer.PSPNet.network import Network
+from PSPNet.network import Network
 
 
 class PSPNet101(Network):

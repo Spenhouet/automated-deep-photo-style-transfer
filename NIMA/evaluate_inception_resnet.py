@@ -5,12 +5,12 @@ from keras.layers import Dense, Dropout
 from keras.models import Model
 
 
-def get_nima_model(input=None, weights_dir=''):
+def get_nima_model(input=None):
     base_model = InceptionResNetV2(input_shape=(None, None, 3), include_top=False, pooling='avg', weights=None,
                                    input_tensor=input)
     x = Dropout(0.75)(base_model.output)
     x = Dense(10, activation='softmax')(x)
 
     model = Model(base_model.input, x)
-    model.load_weights(os.path.join(weights_dir, 'inception_resnet_weights.h5'))
+    model.load_weights(os.path.join(os.path.dirname(__file__), 'weights/inception_resnet_weights.h5'))
     return model

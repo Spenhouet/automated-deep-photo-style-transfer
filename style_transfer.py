@@ -74,7 +74,7 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
 
 def compute_nima_loss(transfer_image):
     input = (transfer_image / 127.5) - 1.0
-    model = get_nima_model(input, '../NIMA/weights')
+    model = get_nima_model(input)
     print('nima output', model.output)
 
     def mean_score(scores):
