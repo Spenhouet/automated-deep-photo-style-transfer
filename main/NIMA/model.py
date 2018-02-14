@@ -4,7 +4,7 @@ from keras.applications.inception_resnet_v2 import InceptionResNetV2
 from keras.layers import Dense, Dropout
 from keras.models import Model
 
-from path import WEIGHTS_DIR
+from main.path import WEIGHTS_DIR
 
 
 def get_nima_model(input=None):
