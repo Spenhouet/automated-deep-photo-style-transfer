@@ -1,14 +1,14 @@
+from NIMA.evaluate_inception_resnet import get_nima_model
+from PSPNet.model import *
 from matting import *
 from segmentation import *
 from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
-from PSPNet.model import *
-from NIMA.evaluate_inception_resnet import get_nima_model
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
     print("Style transfer started")
 
-    weight_restorer = load_weights(args.weights_data)
+    weight_restorer = load_weights()
 
     image_placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
     vgg19 = VGG19ConvSub(image_placeholder)
@@ -72,31 +72,27 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
         return best_image
 
 
-def compute_nima_loss(transfer_image):
-    input = (transfer_image / 127.5) - 1.0
-    model = get_nima_model(input)
-    print('nima output', model.output)
-
-    def mean_score(scores):
-        scores = tf.squeeze(scores)
-        si = tf.range(1, 11, 1, dtype=tf.float32)
-        print('scores', scores)
-        print('si', si)
-        return tf.reduce_sum(tf.multiply(si, scores), name='nima_score')
-
-    nima_score = mean_score(model.output)
-    print('nima score', nima_score)
-
-    nima_loss = tf.identity(10.0 - nima_score, name='nima_loss')
-    return nima_loss
-
-
 def adam_variables_initializer(adam_opt, var_list):
     adam_vars = [adam_opt.get_slot(var, name)
                  for name in adam_opt.get_slot_names()
                  for var in var_list if var is not None]
     adam_vars.extend(list(adam_opt._get_beta_accumulators()))
     return tf.variables_initializer(adam_vars)
+
+
+def compute_nima_loss(transfer_image):
+    input = (transfer_image / 127.5) - 1.0
+    model = get_nima_model(input)
+
+    def mean_score(scores):
+        scores = tf.squeeze(scores)
+        si = tf.range(1, 11, 1, dtype=tf.float32)
+        return tf.reduce_sum(tf.multiply(si, scores), name='nima_score')
+
+    nima_score = mean_score(model.output)
+
+    nima_loss = tf.identity(10.0 - nima_score, name='nima_loss')
+    return nima_loss
 
 
 def calculate_layer_content_loss(content_layer, transfer_layer):
@@ -193,8 +189,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_image", type=str, help="content image path", default="content.png")
     parser.add_argument("--style_image", type=str, help="style image path", default="style.png")
-    parser.add_argument("--weights_data", type=str,
-                        help="path to weights data (vgg19.npz). Download if file does not exist.", default="vgg19.npz")
     parser.add_argument("--output_image", type=str, help="Output image path, default: result.jpg",
                         default="result.jpg")
     parser.add_argument("--iterations", type=int, help="Number of iterations, default: 2000",

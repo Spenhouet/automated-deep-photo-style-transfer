@@ -5,6 +5,8 @@ import numpy as np
 import scipy.io as sio
 import tensorflow as tf
 
+from path import WEIGHTS_DIR
+
 IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 
 """
@@ -32,8 +34,6 @@ label_colours = [(128, 64, 128), (244, 35, 231), (69, 69, 69), (102, 102, 156), 
                  (250, 170, 29), (219, 219, 0), (106, 142, 35), (152, 250, 152), (69, 129, 180), (219, 19, 60),
                  (255, 0, 0), (0, 0, 142), (0, 0, 69), (0, 60, 100), (0, 79, 100), (0, 0, 230), (119, 10, 32)]
 
-matfn = './utils/ade20k_colors.mat'
-
 
 def read_labelcolours(matfn):
     mat = sio.loadmat(matfn)
@@ -46,7 +46,7 @@ def read_labelcolours(matfn):
 
 def decode_labels(mask, img_shape, num_classes):
     if num_classes == 150:
-        color_table = read_labelcolours(os.path.join(os.path.dirname(__file__), matfn))
+        color_table = read_labelcolours(os.path.join(WEIGHTS_DIR, 'PSPNet/ade20k_colors.mat'))
     else:
         color_table = label_colours
 

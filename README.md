@@ -4,8 +4,6 @@ Tensorflow implementation of the [Deep Photo Style Transfer](https://arxiv.org/a
 
 ## Getting Started
 
-TODO
-
 ### Prerequisites
 
 pip3 install:
@@ -15,10 +13,11 @@ pip3 install:
 - tensorflow-gpu
 - tensorpack
 - sematch
+- keras
 
 ### Installing
 
-TODO
+Download the [weights.zip](https://github.com/cgtuebingen/praktikum-ws17-deep-photo-style-transfer/releases/download/v0.1/weights.zip) und unzip it into a new folder `weights` under the project root.
 
 ## Authors
 

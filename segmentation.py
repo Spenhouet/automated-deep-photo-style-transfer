@@ -7,6 +7,7 @@ import tensorflow as tf
 from PIL import Image
 
 from PSPNet.inference import create_segmentation_ade20k
+from path import WEIGHTS_DIR
 from semantic_merge import merge_classes
 
 SEGMENTATION_MAX_LABELS = 20
@@ -136,7 +137,7 @@ def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1,
         print("Found {} segmentation classes in image '{}'.".format(len(unique_colors), filename))
 
         # read labels for semantic grouping
-        labels_filename = os.path.join(os.path.dirname(__file__), 'PSPNet/utils/ade20k_labels.txt')
+        labels_filename = os.path.join(WEIGHTS_DIR, 'PSPNet/ade20k_labels.txt')
         labels = read_segmentation_labels(labels_filename, color_filter=unique_colors)
 
         # merge colors based on the semantic distance of class labels

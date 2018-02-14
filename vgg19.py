@@ -1,14 +1,14 @@
 from __future__ import print_function
 
 import os
-import requests
-import shutil
 
 from tensorpack.models.conv2d import *
 from tensorpack.models.pool import *
 from tensorpack.tfutils.argscope import *
 from tensorpack.tfutils.sessinit import *
 from tensorpack.tfutils.symbolic_functions import *
+
+from path import WEIGHTS_DIR
 
 """
 Subset of the VGG19 model with all convolution layers, trained on ImageNet
@@ -17,21 +17,8 @@ Subset of the VGG19 model with all convolution layers, trained on ImageNet
 VGG_MEAN = [103.939, 116.779, 123.68]
 
 
-def load_weights(weights_filename):
-    """Load VGG19 weights for a given session (download if necessary)"""
-
-    print("Load vgg19 weights file started")
-
-    if not os.path.isfile(weights_filename):
-        print("Load vgg19 weights file from internet")
-        response = requests.get("http://models.tensorpack.com/caffe/vgg19.npz", stream=True)
-        with open(weights_filename, 'wb') as out_file:
-            shutil.copyfileobj(response.raw, out_file)
-        del response
-
-    param_dict = np.load(weights_filename)
-
-    print("Load vgg19 weights file finished")
+def load_weights():
+    param_dict = np.load(os.path.join(WEIGHTS_DIR, 'VGG19/vgg19.npz'))
     return DictRestore(dict(param_dict))
 
 

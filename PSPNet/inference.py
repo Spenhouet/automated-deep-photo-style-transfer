@@ -6,6 +6,7 @@ from scipy import misc
 
 from PSPNet.model import PSPNet101, PSPNet50
 from PSPNet.tools import *
+from path import WEIGHTS_DIR
 
 ADE20k_param = {'crop_size': [473, 473],
                 'num_classes': 150,
@@ -76,7 +77,7 @@ def create_segmentation_ade20k(img_path, net, sess, placeholder):
 
     restore_var = tf.global_variables()
 
-    checkpoint = tf.train.get_checkpoint_state(SNAPSHOT_DIR)
+    checkpoint = tf.train.get_checkpoint_state(os.path.join(WEIGHTS_DIR, 'PSPNet/checkpoint'))
     if checkpoint and checkpoint.model_checkpoint_path:
         loader = tf.train.Saver(var_list=restore_var)
         load(loader, sess, checkpoint.model_checkpoint_path)

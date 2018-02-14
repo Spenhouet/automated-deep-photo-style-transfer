@@ -1,7 +1,11 @@
+from os.path import join
+
 import nltk
 
-nltk.download('wordnet')
-nltk.download('wordnet_ic')
+from path import WEIGHTS_DIR
+
+nltk.data.path.append(join(WEIGHTS_DIR, 'WordNet'))
+
 from sematch.semantic.similarity import WordNetSimilarity
 from segmentation import *
 import argparse
@@ -88,7 +92,7 @@ if __name__ == '__main__':
     # only for testing
     parser = argparse.ArgumentParser()
     parser.add_argument('--thresh', type=float, help="semantic threshold")
-    parser.add_argument('--filename', type=str, default='PSPNet/utils/ade20k_labels.txt')
+    parser.add_argument('--filename', type=str, default=os.path.join(WEIGHTS_DIR, 'PSPNet/ade20k_labels.txt'))
     args = parser.parse_args()
 
     assert (args.thresh is not None)
