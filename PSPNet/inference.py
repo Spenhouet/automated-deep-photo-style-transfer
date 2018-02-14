@@ -4,51 +4,13 @@ import argparse
 
 from scipy import misc
 
-from PSPNet.model import PSPNet101, PSPNet50
+from PSPNet.model import PSPNet50
 from PSPNet.tools import *
 from path import WEIGHTS_DIR
 
 ADE20k_param = {'crop_size': [473, 473],
                 'num_classes': 150,
                 'model': PSPNet50}
-cityscapes_param = {'crop_size': [720, 720],
-                    'num_classes': 19,
-                    'model': PSPNet101}
-
-SAVE_DIR = './output/'
-SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), 'weights/')
-
-
-def get_arguments():
-    parser = argparse.ArgumentParser(description="Reproduced PSPNet")
-    parser.add_argument("--img-path", type=str, default='',
-                        help="Path to the RGB image file.")
-    parser.add_argument("--checkpoints", type=str, default=SNAPSHOT_DIR,
-                        help="Path to restore weights.")
-    parser.add_argument("--save-dir", type=str, default=SAVE_DIR,
-                        help="Path to save output.")
-    parser.add_argument("--flipped-eval", action="store_true",
-                        help="whether to evaluate with flipped img.")
-    parser.add_argument("--dataset", type=str, default='',
-                        choices=['ade20k', 'cityscapes'],
-                        required=True)
-
-    return parser.parse_args()
-
-
-def save(saver, sess, logdir, step):
-    model_name = 'model.ckpt'
-    checkpoint_path = os.path.join(logdir, model_name)
-
-    if not os.path.exists(logdir):
-        os.makedirs(logdir)
-    saver.save(sess, checkpoint_path, global_step=step)
-    print('The checkpoint has been created.')
-
-
-def load(saver, sess, ckpt_path):
-    saver.restore(sess, ckpt_path)
-    print("Restored model parameters from {}".format(ckpt_path))
 
 
 def create_segmentation_ade20k(img_path, net, sess, placeholder):
@@ -95,14 +57,30 @@ def create_segmentation_ade20k(img_path, net, sess, placeholder):
     return preds[0]
 
 
+def get_arguments():
+    parser = argparse.ArgumentParser(description="Reproduced PSPNet")
+    parser.add_argument("--img-path", type=str, default='',
+                        help="Path to the RGB image file.")
+    parser.add_argument("--checkpoints", type=str, default=os.path.join(WEIGHTS_DIR, 'PSPNet'),
+                        help="Path to restore weights.")
+    parser.add_argument("--flipped-eval", action="store_true",
+                        help="whether to evaluate with flipped img.")
+    parser.add_argument("--dataset", type=str, default='',
+                        choices=['ade20k', 'cityscapes'],
+                        required=True)
+
+    return parser.parse_args()
+
+
+def load(saver, sess, ckpt_path):
+    saver.restore(sess, ckpt_path)
+    print("Restored model parameters from {}".format(ckpt_path))
+
+
 def main():
     args = get_arguments()
 
-    # load parameters
-    if args.dataset == 'ade20k':
-        param = ADE20k_param
-    elif args.dataset == 'cityscapes':
-        param = cityscapes_param
+    param = ADE20k_param
 
     crop_size = param['crop_size']
     num_classes = param['num_classes']

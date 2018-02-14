@@ -1,4 +1,4 @@
-from NIMA.evaluate_inception_resnet import get_nima_model
+from NIMA.model import get_nima_model
 from PSPNet.model import *
 from matting import *
 from segmentation import *
