@@ -2,10 +2,10 @@ import argparse
 
 from scipy import misc
 
-from main.PSPNet.inference import load
-from main.PSPNet.model import PSPNet50
-from main.PSPNet.tools import *
-from main.path import WEIGHTS_DIR
+from components.PSPNet.inference import load
+from components.PSPNet.model import PSPNet50
+from components.PSPNet.tools import *
+from components.path import WEIGHTS_DIR
 
 
 def get_arguments():

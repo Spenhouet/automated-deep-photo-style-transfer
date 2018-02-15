@@ -1,8 +1,8 @@
-from NIMA.model import get_nima_model
-from PSPNet.model import PSPNet50
-from matting import *
-from segmentation import *
-from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+from components.NIMA.model import get_nima_model
+from components.PSPNet.model import PSPNet50
+from components.matting import *
+from components.segmentation import *
+from components.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
