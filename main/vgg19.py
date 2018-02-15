@@ -8,7 +8,7 @@ from tensorpack.tfutils.argscope import *
 from tensorpack.tfutils.sessinit import *
 from tensorpack.tfutils.symbolic_functions import *
 
-from main.path import WEIGHTS_DIR
+from path import WEIGHTS_DIR
 
 """
 Subset of the VGG19 model with all convolution layers, trained on ImageNet

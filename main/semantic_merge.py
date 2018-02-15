@@ -2,12 +2,12 @@ from os.path import join
 
 import nltk
 
-from main.path import WEIGHTS_DIR
+from path import WEIGHTS_DIR
 
 nltk.data.path.append(join(WEIGHTS_DIR, 'WordNet'))
 
 from sematch.semantic.similarity import WordNetSimilarity
-from main.segmentation import *
+from segmentation import *
 import argparse
 
 wns = WordNetSimilarity()

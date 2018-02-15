@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io as sio
 import tensorflow as tf
 
-from main.path import WEIGHTS_DIR
+from path import WEIGHTS_DIR
 
 IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 

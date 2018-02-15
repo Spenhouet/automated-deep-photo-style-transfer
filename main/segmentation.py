@@ -6,9 +6,9 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 
-from main.PSPNet.inference import create_segmentation_ade20k
-from main.path import WEIGHTS_DIR
-from main.semantic_merge import merge_classes
+from PSPNet.inference import create_segmentation_ade20k
+from path import WEIGHTS_DIR
+from semantic_merge import merge_classes
 
 SEGMENTATION_MAX_LABELS = 20
 

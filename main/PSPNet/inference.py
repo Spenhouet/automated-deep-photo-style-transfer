@@ -1,8 +1,8 @@
 from __future__ import print_function
 
-from main.PSPNet.model import PSPNet50
-from main.PSPNet.tools import *
-from main.path import WEIGHTS_DIR
+from PSPNet.model import PSPNet50
+from PSPNet.tools import *
+from path import WEIGHTS_DIR
 
 
 def create_segmentation_ade20k(img_path, net, sess, placeholder):

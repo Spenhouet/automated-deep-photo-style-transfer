@@ -1,8 +1,8 @@
-from main.NIMA.model import get_nima_model
-from main.PSPNet.model import PSPNet50
-from main.matting import *
-from main.segmentation import *
-from main.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+from NIMA.model import get_nima_model
+from PSPNet.model import PSPNet50
+from matting import *
+from segmentation import *
+from vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
@@ -285,3 +285,4 @@ if __name__ == "__main__":
     result = style_transfer(content_image, style_image, content_segmentation_masks, style_segmentation_masks,
                             init_image, args)
     save_image(result, "final_transfer_image.png")
+
