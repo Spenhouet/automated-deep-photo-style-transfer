@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from components.NIMA.model import get_nima_model
 from components.PSPNet.model import PSPNet50
 from components.matting import *
@@ -45,6 +47,17 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
 
         total_loss = content_loss + style_loss + photorealism_regularization + nima_loss
 
+        tf.summary.scalar('Content loss', content_loss)
+        tf.summary.scalar('Style loss', style_loss)
+        tf.summary.scalar('Photorealism Regularization', photorealism_regularization)
+        tf.summary.scalar('NIMA loss', nima_loss)
+        tf.summary.scalar('Total loss', total_loss)
+
+        summary_op = tf.summary.merge_all()
+        log_name = datetime.now().strftime('%Y_%m_%d_%H_%M')
+        summary_writer = tf.summary.FileWriter(os.path.join(os.path.dirname(__file__), 'logs/{}'.format(log_name)),
+                                               sess.graph)
+
         optimizer = tf.train.AdamOptimizer(learning_rate=args.adam_learning_rate, beta1=args.adam_beta1,
                                            beta2=args.adam_beta2, epsilon=args.adam_epsilon)
 
@@ -53,14 +66,20 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
 
         min_loss, best_image = float("inf"), None
         for i in range(args.iterations + 1):
-            _, result_image, loss, c_loss, s_loss, n_loss = sess.run(
-                fetches=[train_op, transfer_image, total_loss, content_loss, style_loss, nima_loss])
+            _, result_image, loss, c_loss, s_loss, p_loss, n_loss, summary = sess.run(
+                fetches=[train_op, transfer_image, total_loss, content_loss, style_loss, photorealism_regularization,
+                         nima_loss, summary_op])
+
+            summary_writer.add_summary(summary, i)
 
             if i % args.print_loss_interval == 0:
                 print(
-                    "Iteration: {0:5} \t Total loss: {1:15.2f} \t "
-                    "Content loss: {2:15.2f} \t Style loss: {3:15.2f} \t"
-                    "NIMA loss: {4:15.2f} \t".format(i, loss, c_loss, s_loss, n_loss))
+                    "Iteration: {0:5} \t "
+                    "Total loss: {1:15.2f} \t "
+                    "Content loss: {2:15.2f} \t "
+                    "Style loss: {3:15.2f} \t "
+                    "Photorealism Regularization: {4:15.2f} \t "
+                    "NIMA loss: {5:15.2f} \t".format(i, loss, c_loss, s_loss, p_loss, n_loss))
 
             if loss < min_loss:
                 min_loss, best_image = loss, result_image
