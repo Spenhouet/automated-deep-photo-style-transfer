@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-from model import PSPNet50
-from tools import *
+from .model import PSPNet50
+from .tools import *
 from ..path import WEIGHTS_DIR
 
 

@@ -2,13 +2,11 @@ from os.path import join
 
 import nltk
 
-from path import WEIGHTS_DIR
+from .path import WEIGHTS_DIR
 
 nltk.data.path.append(join(WEIGHTS_DIR, 'WordNet'))
 
 from sematch.semantic.similarity import WordNetSimilarity
-from segmentation import *
-import argparse
 
 wns = WordNetSimilarity()
 
@@ -86,21 +84,3 @@ def split_subgraphs(vertices, edges):
         groups.append(group)
 
     return groups
-
-
-if __name__ == '__main__':
-    # only for testing
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--thresh', type=float, help="semantic threshold")
-    parser.add_argument('--filename', type=str, default=os.path.join(WEIGHTS_DIR, 'PSPNet/ade20k_labels.txt'))
-    args = parser.parse_args()
-
-    assert (args.thresh is not None)
-
-    labels = read_segmentation_labels(args.filename)
-    merged = merge_classes(labels, args.thresh)
-
-    print('new num labels: %i' % len(merged))
-
-    for el in merged:
-        print(el)

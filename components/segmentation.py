@@ -6,9 +6,9 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 
-from PSPNet.inference import create_segmentation_ade20k
-from path import WEIGHTS_DIR
-from semantic_merge import merge_classes
+from .PSPNet.inference import create_segmentation_ade20k
+from .path import WEIGHTS_DIR
+from .semantic_merge import merge_classes
 
 SEGMENTATION_MAX_LABELS = 20
 
@@ -164,18 +164,3 @@ def extract_mask_for_label(segmentation, label):
     mask_tensor = tf.expand_dims(tf.expand_dims(tf.constant(mask), 0), -1)
 
     return mask_tensor
-
-
-if __name__ == '__main__':
-
-    # only for testing
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--filename', type=str)
-    args = parser.parse_args()
-
-    labels = read_segmentation_labels(args.filename)
-
-    for color in labels:
-        print(color, labels[color])

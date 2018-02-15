@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from network import Network
+from .network import Network
 
 
 class PSPNet50(Network):

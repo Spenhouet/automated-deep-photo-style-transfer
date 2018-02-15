@@ -226,7 +226,7 @@ if __name__ == "__main__":
     parser.add_argument("--adam_epsilon", type=float,
                         help="Epsilon for the adam optimizer., default: 1e-08",
                         default=1e-08)
-    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.4",
+    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.8",
                         default=0.8)
     init_image_options = ["noise", "content", "style"]
     parser.add_argument("--init", type=str, help="Initialization image (%s).", default="content")
@@ -285,4 +285,3 @@ if __name__ == "__main__":
     result = style_transfer(content_image, style_image, content_segmentation_masks, style_segmentation_masks,
                             init_image, args)
     save_image(result, "final_transfer_image.png")
-
