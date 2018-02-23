@@ -1,6 +1,18 @@
+import pickle
+from os.path import join
+
 import tensorflow as tf
 
+from components.path import WEIGHTS_DIR
 from .network import Network
+
+
+def load_color_label_dict():
+    labels_filename = join(WEIGHTS_DIR, 'PSPNet/ade20k_labels')
+    file2 = open(labels_filename, 'rb')
+    dict = pickle.load(file2)
+    file2.close()
+    return dict
 
 
 class PSPNet50(Network):

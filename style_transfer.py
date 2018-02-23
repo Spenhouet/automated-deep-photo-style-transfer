@@ -1,10 +1,16 @@
+import os
 from datetime import datetime
 
+import cv2
+import numpy as np
+import tensorflow as tf
+from PIL import Image
+
 from components.NIMA.model import get_nima_model
-from components.PSPNet.model import PSPNet50
-from components.matting import *
-from components.segmentation import *
-from components.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+from components.VGG19.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+from components.matting import compute_matting_laplacian
+from components.segmentation import compute_segmentation
+from components.semantic_merge import merge_segments, reduce_dict, mask_for_tf
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
@@ -87,7 +93,6 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
             if i % args.intermediate_result_interval == 0:
                 save_image(best_image, "transfer/res_{}.png".format(i))
 
-        print("Style transfer finished")
         return best_image
 
 
@@ -192,13 +197,11 @@ def save_image(image, filename):
     result.save(filename)
 
 
-# if images are of different shape, resize image1 to match shape of image0
-def match_shape(image0, image1):
-    if image0.shape == image1.shape:
-        return image1
-    else:
-        shape = (image0.shape[1], image0.shape[0])
-        return cv2.resize(image1, shape)
+def change_filename(filename, suffix, extension=None):
+    path, ext = os.path.splitext(filename)
+    if extension is None:
+        extension = ext
+    return path + suffix + extension
 
 
 if __name__ == "__main__":
@@ -250,8 +253,6 @@ if __name__ == "__main__":
     init_image_options = ["noise", "content", "style"]
     parser.add_argument("--init", type=str, help="Initialization image (%s).", default="content")
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
-    parser.add_argument("--cache", type=bool, nargs="?", help="If specified, reuse segmentation images if they exist.",
-                        const=True, default=False)
 
     args = parser.parse_args()
     assert (args.init in init_image_options)
@@ -264,7 +265,7 @@ if __name__ == "__main__":
     """Check if image files exist"""
     for path in [args.content_image, args.style_image]:
         if path is None or not os.path.isfile(path):
-            print("Image file %s does not exist." % path)
+            print("Image file {} does not exist.".format(path))
             exit(0)
 
     # create directory transfer if it does not exist
@@ -274,25 +275,17 @@ if __name__ == "__main__":
     content_image = load_input_image(args.content_image)
     style_image = load_input_image(args.style_image)
 
-    with tf.Session(graph=tf.Graph()) as sess:
-        placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
-        net = PSPNet50({'data': placeholder}, is_training=False, num_classes=150)
+    content_segmentation, style_segmentation = compute_segmentation(args.content_image, args.style_image)
 
-        content_labels, content_seg = compute_segmentation(args.content_image, net, sess, placeholder,
-                                                           args.semantic_thresh, args.cache)
-        style_labels, style_seg = compute_segmentation(args.style_image, net, sess, placeholder, args.semantic_thresh,
-                                                       args.cache)
+    cv2.imwrite(change_filename(args.content_image, '_seg_raw', '.png'), content_segmentation)
+    cv2.imwrite(change_filename(args.style_image, '_seg_raw', '.png'), style_segmentation)
 
-    # enforce image shapes on segmentation shapes
-    content_seg = match_shape(content_image, content_seg)
-    style_seg = match_shape(style_image, style_seg)
+    content_segmentation_masks, style_segmentation_masks = merge_segments(content_segmentation, style_segmentation,
+                                                                          args.semantic_thresh)
 
-    # compute all segmentation labels as union of style labels and content labels
-    labels = tuple(content_labels | style_labels)
-
-    # create binary masks for each label and both segmentation images
-    content_segmentation_masks = [extract_mask_for_label(content_seg, label) for label in labels]
-    style_segmentation_masks = [extract_mask_for_label(style_seg, label) for label in labels]
+    cv2.imwrite(change_filename(args.content_image, '_seg', '.png'),
+                reduce_dict(content_segmentation_masks, content_image))
+    cv2.imwrite(change_filename(args.style_image, '_seg', '.png'), reduce_dict(style_segmentation_masks, style_image))
 
     if args.init == "noise":
         init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
@@ -300,7 +293,10 @@ if __name__ == "__main__":
         init_image = content_image
     elif args.init == "style":
         init_image = style_image
+    else:
+        print("Init image parameter {} unknown.".format(args.init))
+        exit(0)
 
-    result = style_transfer(content_image, style_image, content_segmentation_masks, style_segmentation_masks,
-                            init_image, args)
+    result = style_transfer(content_image, style_image, mask_for_tf(content_segmentation_masks),
+                            mask_for_tf(style_segmentation_masks), init_image, args)
     save_image(result, "final_transfer_image.png")
