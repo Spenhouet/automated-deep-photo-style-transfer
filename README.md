@@ -17,7 +17,7 @@ pip3 install:
 
 ### Installing
 
-Download the [weights.zip](https://github.com/cgtuebingen/praktikum-ws17-deep-photo-style-transfer/releases/download/v0.1/weights.zip) und unzip it into a new folder `weights` under the project root.
+Download the [weights.zip](https://github.com/cgtuebingen/praktikum-ws17-deep-photo-style-transfer/releases/download/v0.2/weights.zip) und unzip it into a new folder `weights` under the project root.
 
 ## Authors
 
@@ -27,7 +27,3 @@ Download the [weights.zip](https://github.com/cgtuebingen/praktikum-ws17-deep-ph
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details
-
-## Acknowledgments
-
-TODO
