@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from PIL import Image
+import json
 
 from components.NIMA.model import get_nima_model
 from components.VGG19.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
@@ -13,7 +14,8 @@ from components.segmentation import compute_segmentation
 from components.semantic_merge import merge_segments, reduce_dict, mask_for_tf
 
 
-def style_transfer(content_image, style_image, content_masks, style_masks, init_image, args):
+
+def style_transfer(content_image, style_image, content_masks, style_masks, init_image, transfer_dir, args):
     print("Style transfer started")
 
     weight_restorer = load_weights()
@@ -91,7 +93,7 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
                 min_loss, best_image = loss, result_image
 
             if i % args.intermediate_result_interval == 0:
-                save_image(best_image, "transfer/res_{}.png".format(i))
+                save_image(best_image, os.path.join(transfer_dir, "res_{}.png".format(i)))
 
         return best_image
 
@@ -203,6 +205,29 @@ def change_filename(filename, suffix, extension=None):
         extension = ext
     return path + suffix + extension
 
+def write_metadata(dir, args):
+    # collect metadata and write to transfer dir
+    meta = {
+        "init": args.init,
+        "init_scaling": args.init_image_scaling,
+        "content": args.content_image,
+        "style": args.style_image,
+        "content_weight": args.content_weight,
+        "style_weight": args.style_weight,
+        "nima_weight": args.nima_weight,
+        "adam": {
+            "learning_rate": args.adam_learning_rate,
+            "beta1": args.adam_beta1,
+            "beta2": args.adam_beta2,
+            "epsilon": args.adam_epsilon
+        },
+        "regularization_weight": args.regularization_weight,
+        "semantic_thresh": args.semantic_thresh,
+    }
+    filename = os.path.join(dir, "meta.json")
+    with open(filename, "w+") as file:
+        file.write(json.dumps(meta, indent=4))
+
 
 if __name__ == "__main__":
     import argparse
@@ -253,6 +278,8 @@ if __name__ == "__main__":
     init_image_options = ["noise", "content", "style"]
     parser.add_argument("--init", type=str, help="Initialization image (%s).", default="content")
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
+    parser.add_argument("--transfer_dir", type=str, help="directory where all transfer images are written to", default="transfer")
+
 
     args = parser.parse_args()
     assert (args.init in init_image_options)
@@ -260,17 +287,23 @@ if __name__ == "__main__":
     if args.gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
-    args = parser.parse_args()
+    # if transfer dir already exists, append time stamp
+    if os.path.exists(args.transfer_dir):
+        timestamp = datetime.now().strftime('%y%m%d_%H%M%S')
+        transfer_dir = args.transfer_dir + '_' + timestamp
+    else:
+        transfer_dir = args.transfer_dir
+    os.mkdir(transfer_dir)
+
+
+    write_metadata(transfer_dir, args)
+
 
     """Check if image files exist"""
     for path in [args.content_image, args.style_image]:
         if path is None or not os.path.isfile(path):
             print("Image file {} does not exist.".format(path))
             exit(0)
-
-    # create directory transfer if it does not exist
-    if not os.path.exists("transfer"):
-        os.makedirs("transfer")
 
     content_image = load_input_image(args.content_image)
     style_image = load_input_image(args.style_image)
@@ -298,5 +331,5 @@ if __name__ == "__main__":
         exit(0)
 
     result = style_transfer(content_image, style_image, mask_for_tf(content_segmentation_masks),
-                            mask_for_tf(style_segmentation_masks), init_image, args)
+                            mask_for_tf(style_segmentation_masks), init_image, transfer_dir, args)
     save_image(result, "final_transfer_image.png")
