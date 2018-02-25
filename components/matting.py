@@ -64,6 +64,4 @@ def compute_matting_laplacian(image, consts=None, epsilon=1e-5, window_radius=1)
     indices = np.mat([laplacian_coo.row, laplacian_coo.col]).transpose()
     laplacian_tf = tf.to_float(tf.SparseTensor(indices, laplacian_coo.data, laplacian_coo.shape))
 
-    print("Compute matting laplacian finished")
-
     return laplacian_tf

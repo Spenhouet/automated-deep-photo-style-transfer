@@ -1,166 +1,123 @@
 import os
-from ast import literal_eval
 
 import cv2
 import numpy as np
+import scipy.io as sio
 import tensorflow as tf
-from PIL import Image
 
-from .PSPNet.inference import create_segmentation_ade20k
-from .path import WEIGHTS_DIR
-from .semantic_merge import merge_classes
+from components.PSPNet.model import PSPNet50, load_color_label_dict
+from components.path import WEIGHTS_DIR
 
-SEGMENTATION_MAX_LABELS = 20
+CROP_SIZE = [473, 473]
 
 
-def read_segmentation_labels(filename, color_filter=None):
-    segmentation_labels = dict()
-    with open(filename, 'r+') as file:
-        lines = file.read().split('\n')
+def compute_segmentation(content_image_path, style_image_path):
+    print("Compute segmentation started")
 
-        for line in lines:
-            color_str, classes_str = line.split('\t')
-            segmentation_color = literal_eval(color_str)
-            classes = [class_name.strip() for class_name in classes_str.split(',')]
+    with tf.Session(graph=tf.Graph()) as sess:
+        content_image = load_img(content_image_path)
+        style_image = load_img(style_image_path)
 
-            if color_filter and segmentation_color in color_filter:
-                if segmentation_color in segmentation_labels:
-                    # if color appears twice, do not overwrite it, but append it to the existing set of class names
-                    # unlikely to happen, but might due to wrong annotation in PSPNet-ADE20k model
-                    segmentation_labels[segmentation_color].extend(classes)
-                else:
-                    segmentation_labels[segmentation_color] = classes
+        placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
+        net = PSPNet50({'data': placeholder}, is_training=False, num_classes=150)
 
-    return segmentation_labels
+        content_pred, content_pre = segmentation_pred(net, content_image)
+        style_pred, style_pre = segmentation_pred(net, style_image)
 
+        # Init tf Session
+        init = tf.global_variables_initializer()
 
-def extract_unique_colors(input_image):
-    def iterate_pixels(image):
-        for y in range(image.shape[0]):
-            for x in range(image.shape[1]):
-                yield tuple(image[y, x])
+        sess.run(init)
 
-    unique_colors = set([tuple(current_color) for current_color in iterate_pixels(input_image)])
+        restore_var = tf.global_variables()
 
-    if len(unique_colors) > SEGMENTATION_MAX_LABELS:
-        raise ValueError("Found %i colors in segmentation, %i allowed." % (len(unique_colors), SEGMENTATION_MAX_LABELS))
+        checkpoint = tf.train.get_checkpoint_state(os.path.join(WEIGHTS_DIR, 'PSPNet/checkpoint'))
+        if checkpoint and checkpoint.model_checkpoint_path:
+            loader = tf.train.Saver(var_list=restore_var)
+            load(loader, sess, checkpoint.model_checkpoint_path)
+        else:
+            print('No checkpoint file found.')
 
-    return unique_colors
+        content_pre_image = sess.run(content_pre)
+        style_pre_image = sess.run(style_pre)
 
+        content_segmentation_bgr = sess.run(content_pred, feed_dict={placeholder: content_pre_image})
+        style_segmentation_bgr = sess.run(style_pred, feed_dict={placeholder: style_pre_image})
 
-def load_segmentation(filename):
-    image = np.array(Image.open(filename).convert("RGB"), dtype=np.uint8)
-    image.reshape((1, image.shape[0], image.shape[1], 3))
+        content_segmentation = cv2.cvtColor(content_segmentation_bgr[0], cv2.COLOR_BGR2RGB)
+        style_segmentation = cv2.cvtColor(style_segmentation_bgr[0], cv2.COLOR_BGR2RGB)
 
-    unique_colors = extract_unique_colors(image)
-
-    return unique_colors, image
+        return content_segmentation, style_segmentation
 
 
-def bgr2rgb(bgr_image):
-    return bgr_image[..., ::-1]
+def segmentation_pred(net, image):
+    num_classes = 150
+
+    image_shape = tf.shape(image)
+    height = tf.maximum(CROP_SIZE[0], image_shape[0])
+    width = tf.maximum(CROP_SIZE[1], image_shape[1])
+
+    raw_output = net.layers['conv6']
+
+    # Predictions.
+    raw_output_up = tf.image.resize_bilinear(raw_output, size=[height, width], align_corners=True)
+    raw_output_up = tf.image.crop_to_bounding_box(raw_output_up, 0, 0, image_shape[0], image_shape[1])
+    raw_output_up = tf.argmax(raw_output_up, axis=3)
+
+    color_table = list(load_color_label_dict().keys())
+    color_mat = tf.constant(color_table, dtype=tf.float32)
+    onehot_output = tf.one_hot(raw_output_up, depth=num_classes)
+    onehot_output = tf.reshape(onehot_output, (-1, num_classes))
+    pred = tf.matmul(onehot_output, color_mat)
+    pred = tf.reshape(pred, (1, image_shape[0], image_shape[1], 3))
+
+    pre = preprocess(image, height, width)
+
+    return pred, pre
 
 
-def change_filename(filename, suffix, extension=None):
-    path, ext = os.path.splitext(filename)
-    if extension is None:
-        extension = ext
-    return path + suffix + extension
+IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 
 
-def image_group_colors(image, groups, match_dominant_colors=True):
-    """
-    image: image containing only colors that are also in groups
-    groups: list of list of colors
-    return: an image where each color is mapped to the first color in its group
-    """
-    print("Reducing color segments to one segmentation started")
+def load_img(img_path):
+    if not os.path.isfile(img_path):
+        print('Not found file: {0}'.format(img_path))
+        exit(0)
 
-    grouped = image.copy()
+    filename = img_path.split('/')[-1]
+    ext = filename.split('.')[-1]
 
-    if match_dominant_colors:
-        # keep the dominant colors in the segmentation consistent
-        # this can be used to compare different semantic thresholds but does not effect the final result
-        histogram = dict()
-        for group in groups:
-            for current_color in group:
-                histogram[current_color] = 0
-        for y in range(image.shape[0]):
-            for x in range(image.shape[1]):
-                histogram[tuple(image[y, x])] += 1
-        dominant_colors = []
-        for group in groups:
-            group_histogram = dict((current_color, histogram[current_color]) for current_color in group)
-            dominant_colors.append(max(group_histogram.keys(), key=(lambda k: group_histogram[k])))
+    if ext.lower() == 'png':
+        return tf.image.decode_png(tf.read_file(img_path), channels=3)
+    elif ext.lower() == 'jpg':
+        return tf.image.decode_jpeg(tf.read_file(img_path), channels=3)
     else:
-        dominant_colors = [group[0] for group in groups]
-
-    for i, group in enumerate(groups):
-        target = dominant_colors[i]
-        for y in range(image.shape[0]):
-            for x in range(image.shape[1]):
-                if tuple(image[y, x]) in group:
-                    grouped[y, x] = target
-
-    print("Reducing color segments to one segmentation finished")
-
-    return grouped
+        print('cannot process {0} file.'.format(filename))
+        exit(0)
 
 
-"""
-filename: image path
-semantic_threshold: threshold between 0 and 1 for reducing the number of labels in the segmentation by grouping
-semantically similar labels. (0: all classes are merged, 1: classes remain distinct)
-dump_results: write intermediate segmentation results to file system
-return: list of labels, segmentation
-"""
+def preprocess(image, height, width):
+    # Convert RGB to BGR
+    img_r, img_g, img_b = tf.split(axis=2, num_or_size_splits=3, value=image)
+    image = tf.cast(tf.concat(axis=2, values=[img_b, img_g, img_r]), dtype=tf.float32)
+    # Extract mean.
+    image -= IMG_MEAN
+
+    pad_img = tf.image.pad_to_bounding_box(image, 0, 0, height, width)
+    pad_img = tf.expand_dims(pad_img, dim=0)
+
+    return pad_img
 
 
-def compute_segmentation(filename, net, sess, placeholder, semantic_threshold=1, use_cached=False, dump_results=True):
-    print("Segmentation started for '{}'".format(filename))
+def read_label_colors(matfn):
+    mat = sio.loadmat(matfn)
+    color_table = mat['colors']
+    shape = color_table.shape
+    color_list = [tuple(color_table[i]) for i in range(shape[0])]
 
-    segmentation_filename = change_filename(filename, '_seg', '.png')
-
-    # only create segmentation mask if it does not exist yet
-    if use_cached and os.path.exists(segmentation_filename):
-        print("Segmentation file '{}' already exists, use existing.".format(segmentation_filename))
-        return load_segmentation(segmentation_filename)
-
-    # create PSPNet segmentation
-    segmentation = create_segmentation_ade20k(filename, net, sess, placeholder)
-
-    if dump_results:
-        cv2.imwrite(change_filename(filename, '_seg_raw', '.png'), bgr2rgb(segmentation))
-
-    if semantic_threshold <= 1:
-        unique_colors = extract_unique_colors(segmentation)
-        print("Found {} segmentation classes in image '{}'.".format(len(unique_colors), filename))
-
-        # read labels for semantic grouping
-        labels_filename = os.path.join(WEIGHTS_DIR, 'PSPNet/ade20k_labels.txt')
-        labels = read_segmentation_labels(labels_filename, color_filter=unique_colors)
-
-        # merge colors based on the semantic distance of class labels
-        merged = merge_classes(labels, semantic_threshold)
-
-        # group the segmentation colors accordingly
-        color_groups = [pair[0] for pair in merged]
-        segmentation = image_group_colors(segmentation, color_groups)
-
-    if dump_results:
-        cv2.imwrite(segmentation_filename, bgr2rgb(segmentation))
-
-    unique_colors = extract_unique_colors(segmentation)
-
-    print("Segmentation finished for '{}'".format(filename))
-    return unique_colors, segmentation
+    return color_list
 
 
-def extract_mask_for_label(segmentation, label):
-    # mask in numpy representation
-    mask = np.all(segmentation == label, axis=-1).astype(np.float32)
-
-    # mask as tensor
-    mask_tensor = tf.expand_dims(tf.expand_dims(tf.constant(mask), 0), -1)
-
-    return mask_tensor
+def load(saver, sess, ckpt_path):
+    saver.restore(sess, ckpt_path)
+    print("Restored model parameters from {}".format(ckpt_path))
