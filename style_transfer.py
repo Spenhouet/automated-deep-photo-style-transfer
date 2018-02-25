@@ -1,3 +1,5 @@
+import argparse
+import json
 import os
 from datetime import datetime
 
@@ -5,7 +7,6 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from PIL import Image
-import json
 
 from components.NIMA.model import get_nima_model
 from components.VGG19.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
@@ -14,8 +15,7 @@ from components.segmentation import compute_segmentation
 from components.semantic_merge import merge_segments, reduce_dict, mask_for_tf
 
 
-
-def style_transfer(content_image, style_image, content_masks, style_masks, init_image, transfer_dir, args):
+def style_transfer(content_image, style_image, content_masks, style_masks, init_image, result_dir, timestamp, args):
     print("Style transfer started")
 
     weight_restorer = load_weights()
@@ -62,9 +62,11 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
         tf.summary.scalar('Total loss', total_loss)
 
         summary_op = tf.summary.merge_all()
-        log_name = datetime.now().strftime('%Y_%m_%d_%H_%M')
-        summary_writer = tf.summary.FileWriter(os.path.join(os.path.dirname(__file__), 'logs/{}'.format(log_name)),
+        summary_writer = tf.summary.FileWriter(os.path.join(os.path.dirname(__file__), 'logs/{}'.format(timestamp)),
                                                sess.graph)
+
+        iterations_dir = os.path.join(result_dir, "iterations")
+        os.mkdir(iterations_dir)
 
         optimizer = tf.train.AdamOptimizer(learning_rate=args.adam_learning_rate, beta1=args.adam_beta1,
                                            beta2=args.adam_beta2, epsilon=args.adam_epsilon)
@@ -93,7 +95,7 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
                 min_loss, best_image = loss, result_image
 
             if i % args.intermediate_result_interval == 0:
-                save_image(best_image, os.path.join(transfer_dir, "res_{}.png".format(i)))
+                save_image(best_image, os.path.join(iterations_dir, "iter_{}.png".format(i)))
 
         return best_image
 
@@ -199,17 +201,18 @@ def save_image(image, filename):
     result.save(filename)
 
 
-def change_filename(filename, suffix, extension=None):
+def change_filename(dir_name, filename, suffix, extension=None):
     path, ext = os.path.splitext(filename)
     if extension is None:
         extension = ext
-    return path + suffix + extension
+    return os.path.join(dir_name, path + suffix + extension)
+
 
 def write_metadata(dir, args):
     # collect metadata and write to transfer dir
     meta = {
         "init": args.init,
-        "init_scaling": args.init_image_scaling,
+        "iterations": args.iterations,
         "content": args.content_image,
         "style": args.style_image,
         "content_weight": args.content_weight,
@@ -230,8 +233,6 @@ def write_metadata(dir, args):
 
 
 if __name__ == "__main__":
-    import argparse
-
     """Parse program arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--content_image", type=str, help="content image path", default="content.png")
@@ -258,9 +259,6 @@ if __name__ == "__main__":
     parser.add_argument("--nima_weight", type=float,
                         help="Weight for nima loss.",
                         default=10 ** 5)
-    parser.add_argument("--init_image_scaling", type=float,
-                        help="Scaling factor for the init image (random noise)., default: 0.0001",
-                        default=0.0001)
     parser.add_argument("--adam_learning_rate", type=float,
                         help="Learning rate for the adam optimizer., default: 1.0",
                         default=1.0)
@@ -278,8 +276,6 @@ if __name__ == "__main__":
     init_image_options = ["noise", "content", "style"]
     parser.add_argument("--init", type=str, help="Initialization image (%s).", default="content")
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
-    parser.add_argument("--transfer_dir", type=str, help="directory where all transfer images are written to", default="transfer")
-
 
     args = parser.parse_args()
     assert (args.init in init_image_options)
@@ -287,17 +283,12 @@ if __name__ == "__main__":
     if args.gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
-    # if transfer dir already exists, append time stamp
-    if os.path.exists(args.transfer_dir):
-        timestamp = datetime.now().strftime('%y%m%d_%H%M%S')
-        transfer_dir = args.transfer_dir + '_' + timestamp
-    else:
-        transfer_dir = args.transfer_dir
-    os.mkdir(transfer_dir)
+    timestamp = datetime.now().strftime('%Y_%m_%d_%H_%M')
 
+    result_dir = 'result_' + timestamp
+    os.mkdir(result_dir)
 
-    write_metadata(transfer_dir, args)
-
+    write_metadata(result_dir, args)
 
     """Check if image files exist"""
     for path in [args.content_image, args.style_image]:
@@ -310,18 +301,20 @@ if __name__ == "__main__":
 
     content_segmentation, style_segmentation = compute_segmentation(args.content_image, args.style_image)
 
-    cv2.imwrite(change_filename(args.content_image, '_seg_raw', '.png'), content_segmentation)
-    cv2.imwrite(change_filename(args.style_image, '_seg_raw', '.png'), style_segmentation)
+    cv2.imwrite(change_filename(result_dir, args.content_image, '_seg_raw', '.png'), content_segmentation)
+    cv2.imwrite(change_filename(result_dir, args.style_image, '_seg_raw', '.png'), style_segmentation)
 
     content_segmentation_masks, style_segmentation_masks = merge_segments(content_segmentation, style_segmentation,
                                                                           args.semantic_thresh)
 
-    cv2.imwrite(change_filename(args.content_image, '_seg', '.png'),
+    cv2.imwrite(change_filename(result_dir, args.content_image, '_seg', '.png'),
                 reduce_dict(content_segmentation_masks, content_image))
-    cv2.imwrite(change_filename(args.style_image, '_seg', '.png'), reduce_dict(style_segmentation_masks, style_image))
+    cv2.imwrite(change_filename(result_dir, args.style_image, '_seg', '.png'),
+                reduce_dict(style_segmentation_masks, style_image))
 
     if args.init == "noise":
-        init_image = np.random.randn(*content_image.shape).astype(np.float32) * args.init_image_scaling
+        random_noise_scaling_factor = 0.0001
+        init_image = np.random.randn(*content_image.shape).astype(np.float32) * random_noise_scaling_factor
     elif args.init == "content":
         init_image = content_image
     elif args.init == "style":
@@ -331,5 +324,5 @@ if __name__ == "__main__":
         exit(0)
 
     result = style_transfer(content_image, style_image, mask_for_tf(content_segmentation_masks),
-                            mask_for_tf(style_segmentation_masks), init_image, transfer_dir, args)
-    save_image(result, "final_transfer_image.png")
+                            mask_for_tf(style_segmentation_masks), init_image, result_dir, timestamp, args)
+    save_image(result, os.path.join(result_dir, "final_transfer_image.png"))
