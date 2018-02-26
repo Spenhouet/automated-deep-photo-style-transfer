@@ -8,7 +8,6 @@ import numpy as np
 import tensorflow as tf
 
 from components.PSPNet.model import load_color_label_dict
-
 from components.path import WEIGHTS_DIR
 
 nltk.data.path.append(join(WEIGHTS_DIR, 'WordNet'))
@@ -21,19 +20,25 @@ wns = WordNetSimilarity()
 def merge_segments(content_segmentation, style_segmentation, semantic_threshold):
     print("Semantic merge of segments started")
 
+    # load color - label mapping
     color_label_dict = load_color_label_dict()
     label_color_dict = {label: color for color, labels in color_label_dict.items() for label in labels}
     colors = color_label_dict.keys()
 
+    # Extract the boolean mask for every color
     content_mask = extract_segmentation_mask(content_segmentation, colors)
     style_mask = extract_segmentation_mask(style_segmentation, colors)
 
     content_colors = content_mask.keys()
     style_colors = style_mask.keys()
 
+    # Get all colors that are only contained in one of the segmentation images
     difference = list(set(content_colors).symmetric_difference(style_colors))
+
+    # Get all colors that are contained in both segmentation images
     intersection = list(set(content_colors).intersection(style_colors))
 
+    # Combine minimal set of colors to compare via semantic similarity
     difference_colors_to_compare = [it.product(intersection, [dif_color]) for dif_color in difference]
     intersection_colors_to_compare = it.combinations(intersection, 2)
 
@@ -41,37 +46,52 @@ def merge_segments(content_segmentation, style_segmentation, semantic_threshold)
         return it.chain.from_iterable(
             it.product(color_label_dict[first], color_label_dict[second]) for (first, second) in color_tuples)
 
+    # Transform colors to labels
     difference_labels_to_compare_list = [color_tuples_to_label_list_tuples(colors_to_compare) for colors_to_compare in
                                          difference_colors_to_compare]
     intersection_labels_to_compare = color_tuples_to_label_list_tuples(intersection_colors_to_compare)
 
+    # Add similarity score to label tuples
     annotated_difference_labels = [annotate_label_similarity(dif_labels) for dif_labels in
                                    difference_labels_to_compare_list]
     annotated_intersection_labels = annotate_label_similarity(intersection_labels_to_compare)
 
+    # For labels that are only contained in one segmentation image get the highest matching label that is contained in
+    # both images each
     highest_difference_matches = [max(annotated_tuples, key=itemgetter(0)) for annotated_tuples in
                                   annotated_difference_labels]
 
-    above_threshold_intersection = filter(lambda t: t[0] > semantic_threshold,
-                                          annotated_intersection_labels)
+    # For labels that are contained in both segmentation images merge only these with a similarity over the threshold
+    above_threshold_intersection = [(similarity, label_tuple) for (similarity, label_tuple) in
+                                    annotated_intersection_labels if similarity >= semantic_threshold]
 
     labels_to_merge = it.chain(highest_difference_matches, above_threshold_intersection)
 
-    edge_list = [label_tuple for similarity, label_tuple in labels_to_merge]
+    # Drop similarity score
+    edge_list_labels = [label_tuple for similarity, label_tuple in labels_to_merge]
 
-    merged_labels = list(nx.connected_components(nx.from_edgelist(edge_list)))
+    # Turn labels back to colors
+    edge_list_colors = [(label_color_dict[l1], label_color_dict[l2]) for l1, l2 in edge_list_labels]
 
-    def labels_to_colors(labels):
-        return [label_color_dict[label] for label in labels]
+    # Find all sub graphs
+    color_sub_graphs = list(nx.connected_components(nx.from_edgelist(edge_list_colors)))
 
-    merged_colors = [labels_to_colors(labels) for labels in merged_labels]
+    # Create a dictionary with all necessary color replacements
+    replacement_colors = {color: list(color_graph)[0] for color_graph in color_sub_graphs for color in color_graph}
 
-    replacement_colors = {color: colors[0] for colors in merged_colors for color in colors}
+    # Replace colors in dictionary of color -> mask.
+    def replace_colors_in_dict(color_mask_dict):
+        new_color_mask_dict = {}
+        for color, mask in color_mask_dict.items():
+            new_color = replacement_colors[color] if color in replacement_colors else color
+            # Merge masks if color already exists
+            new_color_mask_dict[new_color] = np.logical_or(mask, new_color_mask_dict[
+                new_color]) if new_color in new_color_mask_dict else mask
 
-    new_content_segmentation = {replacement_colors[color] if color in replacement_colors else color: mask for
-                                color, mask in content_mask.items()}
-    new_style_segmentation = {replacement_colors[color] if color in replacement_colors else color: mask for
-                              color, mask in style_mask.items()}
+        return new_color_mask_dict
+
+    new_content_segmentation = replace_colors_in_dict(content_mask)
+    new_style_segmentation = replace_colors_in_dict(style_mask)
 
     return new_content_segmentation, new_style_segmentation
 
