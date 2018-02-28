@@ -12,7 +12,7 @@ from components.NIMA.model import get_nima_model
 from components.VGG19.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
 from components.matting import compute_matting_laplacian
 from components.segmentation import compute_segmentation
-from components.semantic_merge import merge_segments, reduce_dict, mask_for_tf
+from components.semantic_merge import merge_segments, reduce_dict, mask_for_tf, extract_segmentation_masks
 
 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, result_dir, timestamp, args):
@@ -277,6 +277,7 @@ if __name__ == "__main__":
     parser.add_argument("--init", type=str, help="Initialization image (%s).", default="content")
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
 
+
     args = parser.parse_args()
     assert (args.init in init_image_options)
 
@@ -299,13 +300,28 @@ if __name__ == "__main__":
     content_image = load_input_image(args.content_image)
     style_image = load_input_image(args.style_image)
 
-    content_segmentation, style_segmentation = compute_segmentation(args.content_image, args.style_image)
+    # check if manual segmentation masks are available
+    content_segmentation_filename = change_filename('', args.content_image, '_seg', '.png')
+    style_segmentation_filename = change_filename('', args.style_image, '_seg', '.png')
+    load_segmentation = os.path.exists(content_segmentation_filename) and os.path.exists(style_segmentation_filename)
 
-    cv2.imwrite(change_filename(result_dir, args.content_image, '_seg_raw', '.png'), content_segmentation)
-    cv2.imwrite(change_filename(result_dir, args.style_image, '_seg_raw', '.png'), style_segmentation)
+    # use existing if available
+    if (load_segmentation):
+        print("Load segmentation from files.")
+        content_segmentation_image = cv2.imread(content_segmentation_filename)
+        style_segmentation_image = cv2.imread(style_segmentation_filename)
+        content_segmentation_masks = extract_segmentation_masks(content_segmentation_image)
+        style_segmentation_masks = extract_segmentation_masks(style_segmentation_image)
+    else:
+        print("Create segmentation.")
+        content_segmentation, style_segmentation = compute_segmentation(args.content_image, args.style_image)
 
-    content_segmentation_masks, style_segmentation_masks = merge_segments(content_segmentation, style_segmentation,
-                                                                          args.semantic_thresh)
+        cv2.imwrite(change_filename(result_dir, args.content_image, '_seg_raw', '.png'), content_segmentation)
+        cv2.imwrite(change_filename(result_dir, args.style_image, '_seg_raw', '.png'), style_segmentation)
+
+        content_segmentation_masks, style_segmentation_masks = merge_segments(content_segmentation, style_segmentation,
+                                                                              args.semantic_thresh)
+
 
     cv2.imwrite(change_filename(result_dir, args.content_image, '_seg', '.png'),
                 reduce_dict(content_segmentation_masks, content_image))

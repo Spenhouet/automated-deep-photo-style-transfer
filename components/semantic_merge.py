@@ -26,11 +26,11 @@ def merge_segments(content_segmentation, style_segmentation, semantic_threshold)
     colors = color_label_dict.keys()
 
     # Extract the boolean mask for every color
-    content_mask = extract_segmentation_mask(content_segmentation, colors)
-    style_mask = extract_segmentation_mask(style_segmentation, colors)
+    content_masks = extract_segmentation_masks(content_segmentation, colors)
+    style_masks = extract_segmentation_masks(style_segmentation, colors)
 
-    content_colors = content_mask.keys()
-    style_colors = style_mask.keys()
+    content_colors = content_masks.keys()
+    style_colors = style_masks.keys()
 
     # Get all colors that are only contained in one of the segmentation images
     difference = list(set(content_colors).symmetric_difference(style_colors))
@@ -90,8 +90,8 @@ def merge_segments(content_segmentation, style_segmentation, semantic_threshold)
 
         return new_color_mask_dict
 
-    new_content_segmentation = replace_colors_in_dict(content_mask)
-    new_style_segmentation = replace_colors_in_dict(style_mask)
+    new_content_segmentation = replace_colors_in_dict(content_masks)
+    new_style_segmentation = replace_colors_in_dict(style_masks)
 
     return new_content_segmentation, new_style_segmentation
 
@@ -116,8 +116,20 @@ def get_labels_to_compare(label_lists_to_compare):
 def word_similarity(word_a, word_b):
     return wns.word_similarity(word_a, word_b, 'li')
 
+def get_unique_colors_from_image(image):
+    h, w, c = image.shape
+    assert(c == 3)
+    vec = np.reshape(image, (h * w, c))
+    unique_colors = np.unique(vec, axis=0)
+    return [tuple(color) for color in unique_colors]
 
-def extract_segmentation_mask(segmentation, colors):
+def extract_segmentation_masks(segmentation, colors=None):
+
+    if colors is None:
+        # extract distinct colors from segmentation image
+        colors = get_unique_colors_from_image(segmentation)
+        colors = [color[::-1] for color in colors]
+
     return {color: mask for (color, mask) in
             ((color, np.all(segmentation.astype(np.int32) == color[::-1], axis=-1)) for color in colors) if
             mask.max()}
