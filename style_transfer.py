@@ -208,7 +208,7 @@ def change_filename(dir_name, filename, suffix, extension=None):
     return os.path.join(dir_name, path + suffix + extension)
 
 
-def write_metadata(dir, args):
+def write_metadata(dir, args, load_segmentation):
     # collect metadata and write to transfer dir
     meta = {
         "init": args.init,
@@ -226,6 +226,7 @@ def write_metadata(dir, args):
         },
         "regularization_weight": args.regularization_weight,
         "semantic_thresh": args.semantic_thresh,
+        "load_segmentation": load_segmentation
     }
     filename = os.path.join(dir, "meta.json")
     with open(filename, "w+") as file:
@@ -289,7 +290,12 @@ if __name__ == "__main__":
     result_dir = 'result_' + timestamp
     os.mkdir(result_dir)
 
-    write_metadata(result_dir, args)
+    # check if manual segmentation masks are available
+    content_segmentation_filename = change_filename('', args.content_image, '_seg', '.png')
+    style_segmentation_filename = change_filename('', args.style_image, '_seg', '.png')
+    load_segmentation = os.path.exists(content_segmentation_filename) and os.path.exists(style_segmentation_filename)
+
+    write_metadata(result_dir, args, load_segmentation)
 
     """Check if image files exist"""
     for path in [args.content_image, args.style_image]:
@@ -300,10 +306,7 @@ if __name__ == "__main__":
     content_image = load_input_image(args.content_image)
     style_image = load_input_image(args.style_image)
 
-    # check if manual segmentation masks are available
-    content_segmentation_filename = change_filename('', args.content_image, '_seg', '.png')
-    style_segmentation_filename = change_filename('', args.style_image, '_seg', '.png')
-    load_segmentation = os.path.exists(content_segmentation_filename) and os.path.exists(style_segmentation_filename)
+
 
     # use existing if available
     if (load_segmentation):
