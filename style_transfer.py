@@ -311,8 +311,8 @@ if __name__ == "__main__":
     # use existing if available
     if (load_segmentation):
         print("Load segmentation from files.")
-        content_segmentation_image = cv2.imread(content_segmentation_filename)
-        style_segmentation_image = cv2.imread(style_segmentation_filename)
+        content_segmentation_image = cv2.imread(content_segmentation_filename)[:, :, ::-1]
+        style_segmentation_image = cv2.imread(style_segmentation_filename)[:, :, ::-1]
         content_segmentation_masks = extract_segmentation_masks(content_segmentation_image)
         style_segmentation_masks = extract_segmentation_masks(style_segmentation_image)
     else:
