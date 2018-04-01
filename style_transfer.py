@@ -8,8 +8,8 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 
-from components.NIMA.model import get_nima_model
-from components.VGG19.vgg19 import VGG19ConvSub, load_weights, VGG_MEAN
+import components.NIMA.model as nima
+import components.VGG19.model as vgg
 from components.matting import compute_matting_laplacian
 from components.segmentation import compute_segmentation
 from components.semantic_merge import merge_segments, reduce_dict, mask_for_tf, extract_segmentation_masks
@@ -18,13 +18,18 @@ from components.semantic_merge import merge_segments, reduce_dict, mask_for_tf, 
 def style_transfer(content_image, style_image, content_masks, style_masks, init_image, result_dir, timestamp, args):
     print("Style transfer started")
 
-    weight_restorer = load_weights()
+    content_image = vgg.preprocess(content_image)
+    style_image = vgg.preprocess(style_image)
+
+    weight_restorer = vgg.load_weights()
 
     image_placeholder = tf.placeholder(tf.float32, shape=[1, None, None, 3])
-    vgg19 = VGG19ConvSub(image_placeholder)
+    vgg19 = vgg.VGG19ConvSub(image_placeholder)
 
     with tf.Session() as sess:
         transfer_image = tf.Variable(init_image)
+        transfer_image_vgg = vgg.preprocess(transfer_image)
+        transfer_image_nima = nima.preprocess(transfer_image)
 
         sess.run(tf.global_variables_initializer())
         weight_restorer.init(sess)
@@ -34,7 +39,7 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
             feed_dict={image_placeholder: style_image})
 
         with tf.variable_scope("", reuse=True):
-            vgg19 = VGG19ConvSub(transfer_image)
+            vgg19 = vgg.VGG19ConvSub(transfer_image_vgg)
 
         content_loss = calculate_layer_content_loss(content_conv4_2, vgg19.conv4_2)
 
@@ -44,9 +49,9 @@ def style_transfer(content_image, style_image, content_masks, style_masks, init_
         style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv4_1, vgg19.conv4_1, content_masks, style_masks)
         style_loss += (1. / 5.) * calculate_layer_style_loss(style_conv5_1, vgg19.conv5_1, content_masks, style_masks)
 
-        photorealism_regularization = calculate_photorealism_regularization(transfer_image, content_image)
+        photorealism_regularization = calculate_photorealism_regularization(transfer_image_vgg, content_image)
 
-        nima_loss = compute_nima_loss(transfer_image)
+        nima_loss = compute_nima_loss(transfer_image_nima)
 
         content_loss = args.content_weight * content_loss
         style_loss = args.style_weight * style_loss
@@ -108,13 +113,12 @@ def adam_variables_initializer(adam_opt, var_list):
     return tf.variables_initializer(adam_vars)
 
 
-def compute_nima_loss(transfer_image):
-    input = (transfer_image / 127.5) - 1.0
-    model = get_nima_model(input)
+def compute_nima_loss(image):
+    model = nima.get_nima_model(image)
 
     def mean_score(scores):
         scores = tf.squeeze(scores)
-        si = tf.range(1, 11, 1, dtype=tf.float32)
+        si = tf.range(1, 11, dtype=tf.float32)
         return tf.reduce_sum(tf.multiply(si, scores), name='nima_score')
 
     nima_score = mean_score(model.output)
@@ -181,19 +185,14 @@ def calculate_gram_matrix(convolution_layer, mask):
     return tf.matmul(matrix_masked, matrix_masked, transpose_a=True)
 
 
-# load image and preprocess as VGG19 input
-def load_input_image(filename, normalize=False):
+def load_image(filename):
     image = np.array(Image.open(filename).convert("RGB"), dtype=np.float32)
-    image = image[:, :, ::-1] - VGG_MEAN
-    image = image.reshape((1, image.shape[0], image.shape[1], 3)).astype(np.float32)
-    if normalize:
-        image = image / 255.0
+    image = np.expand_dims(image, axis=0)
     return image
 
 
 def save_image(image, filename):
-    image = image[0, :, :, :] + VGG_MEAN
-    image = image[:, :, ::-1]
+    image = image[0, :, :, :]
     image = np.clip(image, 0, 255.0)
     image = np.uint8(image)
 
@@ -217,16 +216,16 @@ def write_metadata(dir, args, load_segmentation):
         "style": args.style_image,
         "content_weight": args.content_weight,
         "style_weight": args.style_weight,
+        "regularization_weight": args.regularization_weight,
         "nima_weight": args.nima_weight,
+        "semantic_thresh": args.semantic_thresh,
+        "load_segmentation": load_segmentation,
         "adam": {
             "learning_rate": args.adam_learning_rate,
             "beta1": args.adam_beta1,
             "beta2": args.adam_beta2,
             "epsilon": args.adam_epsilon
-        },
-        "regularization_weight": args.regularization_weight,
-        "semantic_thresh": args.semantic_thresh,
-        "load_segmentation": load_segmentation
+        }
     }
     filename = os.path.join(dir, "meta.json")
     with open(filename, "w+") as file:
@@ -278,7 +277,6 @@ if __name__ == "__main__":
     parser.add_argument("--init", type=str, help="Initialization image (%s).", default="content")
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
 
-
     args = parser.parse_args()
     assert (args.init in init_image_options)
 
@@ -303,10 +301,8 @@ if __name__ == "__main__":
             print("Image file {} does not exist.".format(path))
             exit(0)
 
-    content_image = load_input_image(args.content_image)
-    style_image = load_input_image(args.style_image)
-
-
+    content_image = load_image(args.content_image)
+    style_image = load_image(args.style_image)
 
     # use existing if available
     if (load_segmentation):
@@ -325,7 +321,6 @@ if __name__ == "__main__":
         content_segmentation_masks, style_segmentation_masks = merge_segments(content_segmentation, style_segmentation,
                                                                               args.semantic_thresh)
 
-
     cv2.imwrite(change_filename(result_dir, args.content_image, '_seg', '.png'),
                 reduce_dict(content_segmentation_masks, content_image))
     cv2.imwrite(change_filename(result_dir, args.style_image, '_seg', '.png'),
@@ -333,7 +328,8 @@ if __name__ == "__main__":
 
     if args.init == "noise":
         random_noise_scaling_factor = 0.0001
-        init_image = np.random.randn(*content_image.shape).astype(np.float32) * random_noise_scaling_factor
+        random_noise = np.random.randn(*content_image.shape).astype(np.float32)
+        init_image = vgg.postprocess(random_noise * random_noise_scaling_factor).astype(np.float32)
     elif args.init == "content":
         init_image = content_image
     elif args.init == "style":
