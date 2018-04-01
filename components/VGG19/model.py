@@ -16,11 +16,14 @@ Subset of the VGG19 model with all convolution layers, trained on ImageNet
 
 VGG_MEAN = [103.939, 116.779, 123.68]
 
+
 def preprocess(image):
     return image[:, :, :, ::-1] - VGG_MEAN
 
+
 def postprocess(image):
     return np.round((image + VGG_MEAN)[:, :, :, ::-1], decimals=0)
+
 
 def load_weights():
     param_dict = np.load(os.path.join(WEIGHTS_DIR, 'VGG19/vgg19.npz'))

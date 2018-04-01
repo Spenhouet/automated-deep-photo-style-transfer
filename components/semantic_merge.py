@@ -1,11 +1,11 @@
 import itertools as it
 from operator import itemgetter
-from os.path import join
 
 import networkx as nx
 import nltk
 import numpy as np
 import tensorflow as tf
+from os.path import join
 
 from components.PSPNet.model import load_color_label_dict
 from components.path import WEIGHTS_DIR
@@ -15,6 +15,56 @@ nltk.data.path.append(join(WEIGHTS_DIR, 'WordNet'))
 from sematch.semantic.similarity import WordNetSimilarity
 
 wns = WordNetSimilarity()
+
+
+def color_tuples_to_label_list_tuples(color_tuples, color_label_dict):
+    return it.chain.from_iterable(
+        it.product(color_label_dict[first], color_label_dict[second]) for (first, second) in color_tuples)
+
+
+# Replace colors in dictionary of color -> mask.
+def replace_colors_in_dict(color_mask_dict, replacement_colors):
+    new_color_mask_dict = {}
+    for color, mask in color_mask_dict.items():
+        new_color = replacement_colors[color] if color in replacement_colors else color
+        # Merge masks if color already exists
+        new_color_mask_dict[new_color] = np.logical_or(mask, new_color_mask_dict[
+            new_color]) if new_color in new_color_mask_dict else mask
+
+    return new_color_mask_dict
+
+
+def merge_difference(first_masks, first_colors, second_colors, color_label_dict, label_color_dict):
+    print("Semantic merge of different segments started")
+
+    # Get all colors that are only contained in one of the segmentation images
+    difference = list(set(first_colors).difference(second_colors))
+
+    # Combine minimal set of colors to compare via semantic similarity
+    difference_colors_to_compare = [list(it.product([dif_color], second_colors)) for dif_color in difference]
+
+    # Transform colors to labels
+    difference_labels_to_compare_list = [color_tuples_to_label_list_tuples(colors_to_compare, color_label_dict)
+                                         for colors_to_compare in difference_colors_to_compare]
+
+    # Add similarity score to label tuples
+    annotated_difference_labels = [annotate_label_similarity(dif_labels) for dif_labels in
+                                   difference_labels_to_compare_list]
+
+    # For labels that are only contained in one segmentation image get the highest matching label that is contained in
+    # both images each
+    highest_difference_matches = [max(annotated_tuples, key=itemgetter(0)) for annotated_tuples in
+                                  annotated_difference_labels]
+
+    # Drop similarity score
+    edge_list_labels = [label_tuple for similarity, label_tuple in highest_difference_matches]
+
+    # Turn labels back to colors and map as replacement color
+    replacement_colors = {label_color_dict[l1]: label_color_dict[l2] for l1, l2 in edge_list_labels}
+
+    new_first_segmentation = replace_colors_in_dict(first_masks, replacement_colors)
+
+    return new_first_segmentation
 
 
 def merge_segments(content_segmentation, style_segmentation, semantic_threshold):
@@ -32,43 +82,34 @@ def merge_segments(content_segmentation, style_segmentation, semantic_threshold)
     content_colors = content_masks.keys()
     style_colors = style_masks.keys()
 
-    # Get all colors that are only contained in one of the segmentation images
-    difference = list(set(content_colors).symmetric_difference(style_colors))
+    # Merge all colors that only occur in the style segmentation with the most similar in the content segmentation
+    style_masks = merge_difference(style_masks, style_colors, content_colors, color_label_dict, label_color_dict)
+    style_colors = style_masks.keys()
+
+    # Merge all colors that only occur in the content segmentation with the most similar in the style segmentation
+    content_masks = merge_difference(content_masks, content_colors, style_colors, color_label_dict, label_color_dict)
+    content_colors = content_masks.keys()
+
+    assert style_colors == content_colors
 
     # Get all colors that are contained in both segmentation images
     intersection = list(set(content_colors).intersection(style_colors))
 
     # Combine minimal set of colors to compare via semantic similarity
-    difference_colors_to_compare = [it.product(intersection, [dif_color]) for dif_color in difference]
     intersection_colors_to_compare = it.combinations(intersection, 2)
 
-    def color_tuples_to_label_list_tuples(color_tuples):
-        return it.chain.from_iterable(
-            it.product(color_label_dict[first], color_label_dict[second]) for (first, second) in color_tuples)
-
     # Transform colors to labels
-    difference_labels_to_compare_list = [color_tuples_to_label_list_tuples(colors_to_compare) for colors_to_compare in
-                                         difference_colors_to_compare]
-    intersection_labels_to_compare = color_tuples_to_label_list_tuples(intersection_colors_to_compare)
+    intersection_labels_to_compare = color_tuples_to_label_list_tuples(intersection_colors_to_compare, color_label_dict)
 
     # Add similarity score to label tuples
-    annotated_difference_labels = [annotate_label_similarity(dif_labels) for dif_labels in
-                                   difference_labels_to_compare_list]
     annotated_intersection_labels = annotate_label_similarity(intersection_labels_to_compare)
-
-    # For labels that are only contained in one segmentation image get the highest matching label that is contained in
-    # both images each
-    highest_difference_matches = [max(annotated_tuples, key=itemgetter(0)) for annotated_tuples in
-                                  annotated_difference_labels]
 
     # For labels that are contained in both segmentation images merge only these with a similarity over the threshold
     above_threshold_intersection = [(similarity, label_tuple) for (similarity, label_tuple) in
                                     annotated_intersection_labels if similarity >= semantic_threshold]
 
-    labels_to_merge = it.chain(highest_difference_matches, above_threshold_intersection)
-
     # Drop similarity score
-    edge_list_labels = [label_tuple for similarity, label_tuple in labels_to_merge]
+    edge_list_labels = [label_tuple for similarity, label_tuple in above_threshold_intersection]
 
     # Turn labels back to colors
     edge_list_colors = [(label_color_dict[l1], label_color_dict[l2]) for l1, l2 in edge_list_labels]
@@ -79,19 +120,10 @@ def merge_segments(content_segmentation, style_segmentation, semantic_threshold)
     # Create a dictionary with all necessary color replacements
     replacement_colors = {color: list(color_graph)[0] for color_graph in color_sub_graphs for color in color_graph}
 
-    # Replace colors in dictionary of color -> mask.
-    def replace_colors_in_dict(color_mask_dict):
-        new_color_mask_dict = {}
-        for color, mask in color_mask_dict.items():
-            new_color = replacement_colors[color] if color in replacement_colors else color
-            # Merge masks if color already exists
-            new_color_mask_dict[new_color] = np.logical_or(mask, new_color_mask_dict[
-                new_color]) if new_color in new_color_mask_dict else mask
+    new_content_segmentation = replace_colors_in_dict(content_masks, replacement_colors)
+    new_style_segmentation = replace_colors_in_dict(style_masks, replacement_colors)
 
-        return new_color_mask_dict
-
-    new_content_segmentation = replace_colors_in_dict(content_masks)
-    new_style_segmentation = replace_colors_in_dict(style_masks)
+    assert new_content_segmentation.keys() == new_style_segmentation.keys()
 
     return new_content_segmentation, new_style_segmentation
 
@@ -116,15 +148,16 @@ def get_labels_to_compare(label_lists_to_compare):
 def word_similarity(word_a, word_b):
     return wns.word_similarity(word_a, word_b, 'li')
 
+
 def get_unique_colors_from_image(image):
     h, w, c = image.shape
-    assert(c == 3)
+    assert (c == 3)
     vec = np.reshape(image, (h * w, c))
     unique_colors = np.unique(vec, axis=0)
     return [tuple(color) for color in unique_colors]
 
-def extract_segmentation_masks(segmentation, colors=None):
 
+def extract_segmentation_masks(segmentation, colors=None):
     if colors is None:
         # extract distinct colors from segmentation image
         colors = get_unique_colors_from_image(segmentation)
