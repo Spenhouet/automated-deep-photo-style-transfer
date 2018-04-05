@@ -169,5 +169,5 @@ def extract_segmentation_masks(segmentation, colors=None):
 
 
 def mask_for_tf(segmentation_mask):
-    return [tf.expand_dims(tf.expand_dims(tf.constant(mask.astype(np.float32)), 0), -1) for mask
-            in segmentation_mask.values()]
+    return [tf.expand_dims(tf.expand_dims(tf.constant(segmentation_mask[key].astype(np.float32)), 0), -1) for key
+            in sorted(segmentation_mask)]
