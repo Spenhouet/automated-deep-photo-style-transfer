@@ -171,3 +171,28 @@ def extract_segmentation_masks(segmentation, colors=None):
 def mask_for_tf(segmentation_mask):
     return [tf.expand_dims(tf.expand_dims(tf.constant(segmentation_mask[key].astype(np.float32)), 0), -1) for key
             in sorted(segmentation_mask)]
+
+
+if __name__ == '__main__':
+    import argparse
+    import os
+    import cv2
+    from style_transfer import load_image, change_filename
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--raw_segmentation", type=str, help="raw segmentation image path", default="raw_seg.png")
+    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping", default=0.5)
+    args = parser.parse_args()
+
+    image = load_image(args.raw_segmentation)
+
+    segmentation_image = cv2.imread(args.raw_segmentation)
+
+    segmentation_masks, _ = merge_segments(segmentation_image, segmentation_image,
+                                           args.semantic_thresh)
+
+    result_dir = 'semantic_merge'
+    if not os.path.exists(result_dir):
+        os.mkdir(result_dir)
+    cv2.imwrite(change_filename(result_dir, args.raw_segmentation, '_{}'.format(args.semantic_thresh), '.png'),
+                reduce_dict(segmentation_masks, image))

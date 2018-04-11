@@ -121,3 +121,19 @@ def read_label_colors(matfn):
 def load(saver, sess, ckpt_path):
     saver.restore(sess, ckpt_path)
     print("Restored model parameters from {}".format(ckpt_path))
+
+
+if __name__ == '__main__':
+    import argparse
+    from style_transfer import change_filename
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--image", type=str, help="image path", default="image.png")
+    args = parser.parse_args()
+
+    segmentation, _ = compute_segmentation(args.image, args.image)
+
+    result_dir = 'raw_seg'
+    if not os.path.exists(result_dir):
+        os.mkdir(result_dir)
+    cv2.imwrite(change_filename(result_dir, args.image, '_seg_raw', '.png'), segmentation)
