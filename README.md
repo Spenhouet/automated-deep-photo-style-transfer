@@ -1,6 +1,24 @@
-# Deep Photo Style Transfer - Tensorflow Implementation
+# Automated Deep Photo Style Transfer
 
-Tensorflow implementation of the [Deep Photo Style Transfer](https://arxiv.org/abs/1703.07511) paper.
+This repository holds a TensorFlow implementation for the paper [Automated Deep Photo Style Transfer](https://arxiv.org/abs/1901.03915).
+
+At its core this is a TensorFlow based implementation of the paper [Deep Photo Style Transfer](https://arxiv.org/abs/1703.07511).
+
+One of the main contributions of “Automated Deep Photo Style Transfer” is the automatic segmentation of input images and a semantic grouping thereof. Another contribution of this is the optimization of the transfer image by improving the aesthetics of the image with the use of [Neural Image Assessment (NIMA)](https://arxiv.org/abs/1709.05424).
+
+## Examples
+
+Given a content and style image, automatically a segmentation is created and semantically grouped to produce a transfer image in the size of the content image by using the [Deep Photo Style Transfer](https://arxiv.org/abs/1703.07511):
+
+<p align="center">
+    <img src="./examples/teaser.jpg" width="870" alt="Overview"/>
+</p>
+
+Here are some example results (from left to right are the content image, the resulting transfer image and the style image):
+
+<p align="center">
+    <img src="./examples/example_results.jpg" width="870" alt="Example results"/>
+</p>
 
 ## Getting Started
 
@@ -17,14 +35,11 @@ pip3 install:
 
 ### Installing
 
-Download the [weights.zip](https://github.com/cgtuebingen/praktikum-ws17-deep-photo-style-transfer/releases/latest) from the latest release and unzip it into a new folder `weights` under the project root.
+Download the [weights.zip](https://github.com/Spenhouet/automated-deep-photo-style-transfer/releases/latest) from the latest release and unzip it into a new folder `weights` under the project root.
 
-## Authors
+## Acknowledgement
 
-* **Fujun Luan, Sylvain Paris, Eli Shechtman, Kavita Bala** - *Paper* -  [Deep Photo Style Transfer](https://arxiv.org/abs/1703.07511)
-* **Paul Sanzenbacher, Sebastian Penhouet** - *Implementation*
-
-Additional references:
+* **Fujun Luan, Sylvain Paris, Eli Shechtman, Kavita Bala** - [Deep Photo Style Transfer](https://arxiv.org/abs/1703.07511)
 * **L. Gatys, A. Ecker, M. Bethge** - [Image Style Transfer Using Convolutional Neural Networks](https://pdfs.semanticscholar.org/7568/d13a82f7afa4be79f09c295940e48ec6db89.pdf)	
 * **A. Levin, D. Lischinski, Y. Weiss** - [A Closed Form Solution To Natural Image](http://webee.technion.ac.il/people/anat.levin/papers/Matting-Levin-Lischinski-Weiss-CVPR06.pdf) 
 * **H. Zhao, J. Shi, X. Qi, X. Wang, J. Jia** - [Pyramid Scene Parsing Network](https://arxiv.org/pdf/1612.01105.pdf)
@@ -34,6 +49,6 @@ using multiple information sources](http://ieeexplore.ieee.org/document/1209005/
 * **H. Talebi, P. Milanfar** - [NIMA: Neural Image Assessment](https://arxiv.org/abs/1709.05424)
 * **H. Talebi, P. Milanfar** - [Learned Perceptual Image Enhancement](https://arxiv.org/abs/1712.02864)
 
-## License
+## Disclaimer
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details
+This software is published for academic and non-commercial use only.
