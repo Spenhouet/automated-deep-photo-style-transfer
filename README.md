@@ -32,6 +32,8 @@ pip3 install:
 - tensorpack
 - sematch
 - keras
+- pillow
+- opencv-python
 
 ### Installing
 
