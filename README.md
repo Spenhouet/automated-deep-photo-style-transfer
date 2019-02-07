@@ -20,24 +20,12 @@ Here are some example results (from left to right are the content image, the res
     <img src="./examples/example_results.jpg" width="870" alt="Example results"/>
 </p>
 
-## Getting Started
+## Setup
 
-### Prerequisites
-
-pip3 install:
-- requests
-- numpy
-- scipy
-- tensorflow-gpu
-- tensorpack
-- sematch
-- keras
-- pillow
-- opencv-python
-
-### Installing
-
-Download the [weights.zip](https://github.com/Spenhouet/automated-deep-photo-style-transfer/releases/latest) from the latest release and unzip it into a new folder `weights` under the project root.
+1. Download or clone repository files to your computer
+1. Go into repository folder
+1. Install requirements: `pip3 install -r requirements.txt --upgrade`
+1. Download the [weights.zip](https://github.com/Spenhouet/automated-deep-photo-style-transfer/releases/latest) from the latest release and unzip it into a new folder `weights` under the project root.
 
 ## Acknowledgement
 

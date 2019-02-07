@@ -1,0 +1,9 @@
+requests
+numpy
+scipy
+tensorflow-gpu
+tensorpack
+sematch
+keras
+pillow
+opencv-python
