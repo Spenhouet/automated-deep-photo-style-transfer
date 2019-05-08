@@ -90,7 +90,7 @@ def merge_segments(content_segmentation, style_segmentation, semantic_threshold)
     content_masks = merge_difference(content_masks, content_colors, style_colors, color_label_dict, label_color_dict)
     content_colors = content_masks.keys()
 
-    assert style_colors == content_colors
+    assert(frozenset(style_colors) == frozenset(content_colors))
 
     # Get all colors that are contained in both segmentation images
     intersection = list(set(content_colors).intersection(style_colors))
