@@ -34,7 +34,7 @@ def replace_colors_in_dict(color_mask_dict, replacement_colors):
     return new_color_mask_dict
 
 
-def merge_difference(first_masks, first_colors, second_colors, color_label_dict, label_color_dict):
+def merge_difference(first_masks, first_colors, second_colors, color_label_dict, label_color_dict, similarity_metric):
     print("Semantic merge of different segments started")
 
     # Get all colors that are only contained in one of the segmentation images
@@ -48,7 +48,7 @@ def merge_difference(first_masks, first_colors, second_colors, color_label_dict,
                                          for colors_to_compare in difference_colors_to_compare]
 
     # Add similarity score to label tuples
-    annotated_difference_labels = [annotate_label_similarity(dif_labels) for dif_labels in
+    annotated_difference_labels = [annotate_label_similarity(dif_labels, similarity_metric) for dif_labels in
                                    difference_labels_to_compare_list]
 
     # For labels that are only contained in one segmentation image get the highest matching label that is contained in
@@ -67,7 +67,7 @@ def merge_difference(first_masks, first_colors, second_colors, color_label_dict,
     return new_first_segmentation
 
 
-def merge_segments(content_segmentation, style_segmentation, semantic_threshold):
+def merge_segments(content_segmentation, style_segmentation, semantic_threshold, similarity_metric):
     print("Semantic merge of segments started")
 
     # load color - label mapping
@@ -83,11 +83,11 @@ def merge_segments(content_segmentation, style_segmentation, semantic_threshold)
     style_colors = style_masks.keys()
 
     # Merge all colors that only occur in the style segmentation with the most similar in the content segmentation
-    style_masks = merge_difference(style_masks, style_colors, content_colors, color_label_dict, label_color_dict)
+    style_masks = merge_difference(style_masks, style_colors, content_colors, color_label_dict, label_color_dict, similarity_metric)
     style_colors = style_masks.keys()
 
     # Merge all colors that only occur in the content segmentation with the most similar in the style segmentation
-    content_masks = merge_difference(content_masks, content_colors, style_colors, color_label_dict, label_color_dict)
+    content_masks = merge_difference(content_masks, content_colors, style_colors, color_label_dict, label_color_dict, similarity_metric)
     content_colors = content_masks.keys()
 
     assert(frozenset(style_colors) == frozenset(content_colors))
@@ -102,7 +102,7 @@ def merge_segments(content_segmentation, style_segmentation, semantic_threshold)
     intersection_labels_to_compare = color_tuples_to_label_list_tuples(intersection_colors_to_compare, color_label_dict)
 
     # Add similarity score to label tuples
-    annotated_intersection_labels = annotate_label_similarity(intersection_labels_to_compare)
+    annotated_intersection_labels = annotate_label_similarity(intersection_labels_to_compare, similarity_metric)
 
     # For labels that are contained in both segmentation images merge only these with a similarity over the threshold
     above_threshold_intersection = [(similarity, label_tuple) for (similarity, label_tuple) in
@@ -137,16 +137,12 @@ def reduce_dict(dict, image):
     return arr
 
 
-def annotate_label_similarity(labels_to_compare):
-    return [(wns.word_similarity(l1, l2, 'li'), (l1, l2)) for (l1, l2) in labels_to_compare]
+def annotate_label_similarity(labels_to_compare, similarity_metric):
+    return [(wns.word_similarity(l1, l2, similarity_metric), (l1, l2)) for (l1, l2) in labels_to_compare]
 
 
 def get_labels_to_compare(label_lists_to_compare):
     return it.chain.from_iterable(it.product(l1, l2) for (l1, l2) in label_lists_to_compare)
-
-
-def word_similarity(word_a, word_b):
-    return wns.word_similarity(word_a, word_b, 'li')
 
 
 def get_unique_colors_from_image(image):
@@ -182,14 +178,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--raw_segmentation", type=str, help="raw segmentation image path", default="raw_seg.png")
     parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping", default=0.5)
+    parser.add_argument("--similarity_metric", type=str, help="Smantic similarity metric for label grouping., default: li",
+                        default="li")
+    similarity_metric_options = ["li", "wpath", "jcn", "lin", "wup", "res"]
     args = parser.parse_args()
+
+    # For more information on the similarity metrics: http://gsi-upm.github.io/sematch/similarity/#word-similarity
+    assert (args.similarity_metric in similarity_metric_options)
 
     image = load_image(args.raw_segmentation)
 
     segmentation_image = cv2.imread(args.raw_segmentation)
 
     segmentation_masks, _ = merge_segments(segmentation_image, segmentation_image,
-                                           args.semantic_thresh)
+                                           args.semantic_thresh, args.similarity_metric)
 
     result_dir = 'semantic_merge'
     if not os.path.exists(result_dir):
