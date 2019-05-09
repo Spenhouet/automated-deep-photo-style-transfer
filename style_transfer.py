@@ -219,6 +219,7 @@ def write_metadata(dir, args, load_segmentation):
         "regularization_weight": args.regularization_weight,
         "nima_weight": args.nima_weight,
         "semantic_thresh": args.semantic_thresh,
+        "similarity_metric": args.similarity_metric,
         "load_segmentation": load_segmentation,
         "adam": {
             "learning_rate": args.adam_learning_rate,
@@ -239,7 +240,7 @@ if __name__ == "__main__":
     parser.add_argument("--style_image", type=str, help="style image path", default="style.png")
     parser.add_argument("--output_image", type=str, help="Output image path, default: result.jpg",
                         default="result.jpg")
-    parser.add_argument("--iterations", type=int, help="Number of iterations, default: 2000",
+    parser.add_argument("--iterations", type=int, help="Number of iterations, default: 4000",
                         default=4000)
     parser.add_argument("--intermediate_result_interval", type=int,
                         help="Interval of iterations until a intermediate result is saved., default: 100",
@@ -248,10 +249,10 @@ if __name__ == "__main__":
                         help="Interval of iterations until the current loss is printed to console., default: 1",
                         default=1)
     parser.add_argument("--content_weight", type=float,
-                        help="Weight of the content loss.",
+                        help="Weight of the content loss., default: 1",
                         default=1)
     parser.add_argument("--style_weight", type=float,
-                        help="Weight of the style loss.",
+                        help="Weight of the style loss., default: 100",
                         default=100)
     parser.add_argument("--regularization_weight", type=float,
                         help="Weight of the photorealism regularization.",
@@ -271,14 +272,19 @@ if __name__ == "__main__":
     parser.add_argument("--adam_epsilon", type=float,
                         help="Epsilon for the adam optimizer., default: 1e-08",
                         default=1e-08)
-    parser.add_argument("--semantic_thresh", type=float, help="Smantic threshold for label grouping., default: 0.8",
+    parser.add_argument("--semantic_thresh", type=float, help="Semantic threshold for label grouping., default: 0.8",
                         default=0.8)
+    parser.add_argument("--similarity_metric", type=str, help="Semantic similarity metric for label grouping., default: li",
+                        default="li")
     init_image_options = ["noise", "content", "style"]
+    similarity_metric_options = ["li", "wpath", "jcn", "lin", "wup", "res"]
     parser.add_argument("--init", type=str, help="Initialization image (%s).", default="content")
     parser.add_argument("--gpu", help="comma separated list of GPU(s) to use.", default="0")
 
     args = parser.parse_args()
     assert (args.init in init_image_options)
+    # For more information on the similarity metrics: http://gsi-upm.github.io/sematch/similarity/#word-similarity
+    assert (args.similarity_metric in similarity_metric_options)
 
     if args.gpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
@@ -319,7 +325,7 @@ if __name__ == "__main__":
         cv2.imwrite(change_filename(result_dir, args.style_image, '_seg_raw', '.png'), style_segmentation)
 
         content_segmentation_masks, style_segmentation_masks = merge_segments(content_segmentation, style_segmentation,
-                                                                              args.semantic_thresh)
+                                                                              args.semantic_thresh, args.similarity_metric)
 
     cv2.imwrite(change_filename(result_dir, args.content_image, '_seg', '.png'),
                 reduce_dict(content_segmentation_masks, content_image))
